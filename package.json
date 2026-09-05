@@ -1,0 +1,51 @@
+{
+  "name": "animation-rank",
+  "version": "1.0.0",
+  "private": true,
+  "description": "动画梯度排行",
+  "author": "Animation Rank",
+  "main": "dist-electron/electron/main.js",
+  "scripts": {
+    "dev": "vite build && tsc -p tsconfig.electron.json && electron .",
+    "build": "tsc --noEmit && vite build && tsc -p tsconfig.electron.json",
+    "test": "vitest run",
+    "test:desktop": "npm run build && node tests/desktop.e2e.cjs",
+    "test:live": "npm run build && node tests/live.cjs",
+    "format": "prettier --write src electron tests *.json *.ts index.html README.md",
+    "check": "tsc --noEmit",
+    "pack": "npm run build && electron-builder --mac dir --arm64"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.0.12",
+    "prettier": "^3.9.6",
+    "typescript": "^5.8.0",
+    "vite": "^6.3.0",
+    "vitest": "^3.2.0"
+  },
+  "build": {
+    "appId": "local.animation.rank",
+    "productName": "动画梯度排行",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*"
+    ],
+    "mac": {
+      "identity": null,
+      "category": "public.app-category.entertainment"
+    }
+  }
+}
