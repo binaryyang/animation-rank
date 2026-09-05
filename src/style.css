@@ -937,3 +937,237 @@ footer {
     gap: 10px;
   }
 }
+
+/* Keep both ranking surfaces reachable without scrolling the whole window. */
+.app {
+  height: 100vh;
+  overflow: hidden;
+}
+main {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+.topbar,
+.heading,
+.toolbar,
+main > footer,
+.notice {
+  flex-shrink: 0;
+}
+.heading {
+  padding-top: 22px;
+  padding-bottom: 18px;
+}
+.heading h1 {
+  margin: 8px 0;
+}
+.toolbar {
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.tools {
+  flex-wrap: wrap;
+}
+.ranking-workspace {
+  display: flex;
+  gap: 18px;
+  margin: 0 24px;
+  flex: 1;
+  min-height: 0;
+}
+.board-column {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.board-scroll {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  overscroll-behavior: contain;
+}
+.ranking-workspace .board {
+  margin: 0;
+}
+.ranking-workspace .pending {
+  margin: 0;
+  width: 280px;
+  flex-shrink: 0;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.pending-header {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  flex-shrink: 0;
+}
+.pending-header input {
+  width: 100%;
+}
+.pending-cards {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  align-content: flex-start;
+  gap: 12px 8px;
+  overscroll-behavior: contain;
+}
+.pending-cards .anime-card {
+  width: 72px;
+}
+.pending-cards .cover {
+  width: 72px;
+  height: 96px;
+}
+.pending-empty {
+  align-self: center;
+  padding: 20px 0;
+  text-align: center;
+}
+.quick-view,
+.empty-workspace {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+footer {
+  padding: 12px;
+}
+.notice {
+  max-height: 60px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+@media (max-width: 1150px) {
+  .ranking-workspace {
+    gap: 12px;
+    margin: 0 18px;
+  }
+  .ranking-workspace .pending {
+    width: 260px;
+    padding: 12px;
+  }
+  .tier-label {
+    width: 72px;
+  }
+}
+
+/* Compact chrome gives the ranking canvas priority. */
+.topbar {
+  height: 36px;
+  padding: 0 20px;
+}
+.heading {
+  padding: 10px 20px 8px;
+  gap: 12px;
+}
+.heading > div:first-child {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  min-width: 0;
+}
+.heading h1 {
+  font-size: 20px;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.heading p {
+  flex-shrink: 0;
+  font-size: 10px;
+}
+.toolbar {
+  margin: 0 20px 10px;
+  gap: 6px;
+}
+.segmented button {
+  padding: 6px 10px;
+}
+.tools button {
+  padding: 7px 10px;
+}
+.ranking-workspace {
+  margin: 0 16px 12px;
+  gap: 12px;
+}
+.sidebar {
+  width: 190px;
+  padding: 18px 12px 12px;
+}
+.brand {
+  margin: 0 4px 20px;
+  gap: 9px;
+}
+.brand strong {
+  font-size: 17px;
+}
+.brand small {
+  font-size: 7px;
+  letter-spacing: 1px;
+}
+.brand-icon {
+  width: 36px;
+  height: 36px;
+  font-size: 21px;
+}
+.new-task {
+  padding: 9px;
+  font-size: 12px;
+}
+.section-label {
+  margin-top: 20px;
+}
+.local-info {
+  padding-top: 12px;
+  margin-top: 10px;
+}
+.local-info small {
+  display: none;
+}
+main {
+  margin-left: 190px;
+}
+.panel-backdrop {
+  left: 190px;
+}
+.ranking-workspace .pending {
+  width: 240px;
+  padding: 12px;
+}
+.pending-header {
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.pending-cards .anime-card,
+.pending-cards .cover {
+  width: 64px;
+}
+.pending-cards .cover {
+  height: 86px;
+}
+.notice {
+  position: fixed;
+  bottom: 20px;
+  left: 210px;
+  max-width: min(560px, calc(100vw - 240px));
+  margin: 0;
+  z-index: 12;
+  box-shadow: 0 4px 16px #20303918;
+}
+@media (max-width: 1150px) {
+  .heading > div:first-child {
+    gap: 10px;
+  }
+  .heading h1 {
+    max-width: 280px;
+  }
+}

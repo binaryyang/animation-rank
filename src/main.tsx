@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   Anime,
@@ -54,8 +54,94 @@ function App() {
     [quick, setQuick] = useState(false),
     [filter, setFilter] = useState(""),
     [exporting, setExporting] = useState(false);
+  useEffect(() => {
+    if (!notice || /失败|异常|无法|Error/.test(notice)) return;
+    const timer = window.setTimeout(() => setNotice(""), 4000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   const undo = useRef<{ taskId: string; entries: Task["entries"] }[]>([]);
   const drag = useRef<string | null>(null);
+  const dragTask = useRef<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const scrolling = useRef<{ element: HTMLElement; speed: number } | null>(
+    null,
+  );
+  function stopDrag() {
+    drag.current = null;
+    dragTask.current = null;
+    scrolling.current = null;
+    setDragging(false);
+  }
+  useLayoutEffect(() => {
+    stopDrag();
+  }, [state.activeId, quick, panel, modal]);
+  useEffect(() => {
+    if (!dragging) return;
+    let frame: number;
+    let previous = 0;
+    const tick = (time: number) => {
+      if (scrolling.current)
+        scrolling.current.element.scrollTop +=
+          (scrolling.current.speed * Math.min(time - (previous || time), 32)) /
+          16;
+      previous = time;
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    const cancel = () => stopDrag();
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") stopDrag();
+    };
+    const edge = (event: DragEvent) => {
+      const element =
+        event.target instanceof Element
+          ? event.target.closest<HTMLElement>("[data-drag-scroll]")
+          : null;
+      if (!element) {
+        scrolling.current = null;
+        return;
+      }
+      const rect = element.getBoundingClientRect(),
+        distance = 48;
+      const speed =
+        event.clientY < rect.top + distance
+          ? -12 * (1 - (event.clientY - rect.top) / distance)
+          : event.clientY > rect.bottom - distance
+            ? 12 * (1 - (rect.bottom - event.clientY) / distance)
+            : 0;
+      scrolling.current = speed ? { element, speed } : null;
+    };
+    const leave = (event: DragEvent) => {
+      if (!event.relatedTarget) scrolling.current = null;
+    };
+    document.addEventListener("dragover", edge);
+    document.addEventListener("dragleave", leave);
+    document.addEventListener("drop", cancel);
+    document.addEventListener("dragend", cancel);
+    window.addEventListener("blur", cancel);
+    window.addEventListener("keydown", escape);
+    return () => {
+      cancelAnimationFrame(frame);
+      scrolling.current = null;
+      document.removeEventListener("dragover", edge);
+      document.removeEventListener("dragleave", leave);
+      document.removeEventListener("drop", cancel);
+      document.removeEventListener("dragend", cancel);
+      window.removeEventListener("blur", cancel);
+      window.removeEventListener("keydown", escape);
+    };
+  }, [dragging]);
+  function drop(tier: number | null, before?: string) {
+    if (drag.current && dragTask.current === task?.id) {
+      const name = task?.entries.find((e) => e.anime.id === drag.current)?.anime
+        .name;
+      rank(drag.current, tier, before);
+      setNotice(
+        `已将「${name}」移至${tier === null ? "待评价" : tiers[tier]}，可撤销。`,
+      );
+    }
+    stopDrag();
+  }
   const revision = useRef(0);
   const task = state.tasks.find((t) => t.id === state.activeId);
   const pending = task?.entries.filter((e) => e.tier === null) || [];
@@ -198,15 +284,17 @@ function App() {
         draggable
         onDragStart={(e) => {
           drag.current = a.id;
+          dragTask.current = task?.id || null;
+          setDragging(true);
+          e.dataTransfer.effectAllowed = "move";
           e.dataTransfer.setData("text/plain", a.id);
         }}
-        onDragEnd={() => (drag.current = null)}
+        onDragEnd={stopDrag}
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => {
           e.preventDefault();
           e.stopPropagation();
-          if (drag.current) rank(drag.current, tier, a.id);
-          drag.current = null;
+          drop(tier, a.id);
         }}
       >
         <button className="card-button" onClick={() => setDetail(a)}>
@@ -320,12 +408,10 @@ function App() {
           <>
             <section className="heading">
               <div>
-                <span className="eyebrow">MY ANIME COLLECTION</span>
                 <h1>{task.name}</h1>
                 <p>
                   {task.entries.length} 部动画 <span>·</span>{" "}
-                  {task.entries.length - pending.length} 部已评价 <span>·</span>{" "}
-                  让每一部动画，各就其位。
+                  {task.entries.length - pending.length} 部已评价
                 </p>
               </div>
               <div className="heading-actions">
@@ -431,87 +517,86 @@ function App() {
                 )}
               </section>
             ) : (
-              <section className="board">
-                {tiers.map((tier, i) => (
-                  <div
-                    className="tier-row"
-                    key={tier}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      if (drag.current) rank(drag.current, i);
-                      drag.current = null;
-                    }}
-                  >
-                    <div
-                      className="tier-label"
-                      style={{ background: colors[i] }}
-                    >
-                      <strong>{tier}</strong>
-                      <small>
-                        {task.entries.filter((e) => e.tier === i).length} 部
-                      </small>
-                    </div>
-                    <div className="tier-content">
-                      {task.entries
-                        .filter((e) => e.tier === i)
-                        .map((e) => card(e.anime, i))}
-                      {!task.entries.some((e) => e.tier === i) && (
-                        <span className="drop-hint">拖动动画到这里</span>
-                      )}
-                    </div>
+              <div className="ranking-workspace">
+                <div className="board-column">
+                  <div className="board-scroll" data-drag-scroll>
+                    <section className="board">
+                      {tiers.map((tier, i) => (
+                        <div
+                          className="tier-row"
+                          key={tier}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            drop(i);
+                          }}
+                        >
+                          <div
+                            className="tier-label"
+                            style={{ background: colors[i] }}
+                          >
+                            <strong>{tier}</strong>
+                            <small>
+                              {task.entries.filter((e) => e.tier === i).length}{" "}
+                              部
+                            </small>
+                          </div>
+                          <div className="tier-content">
+                            {task.entries
+                              .filter((e) => e.tier === i)
+                              .map((e) => card(e.anime, i))}
+                            {!task.entries.some((e) => e.tier === i) && (
+                              <span className="drop-hint">拖动动画到这里</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </section>
                   </div>
-                ))}
-              </section>
-            )}
-            {!quick && (
-              <section
-                className="pending"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  if (drag.current) rank(drag.current, null);
-                  drag.current = null;
-                }}
-              >
-                <div className="pending-header">
-                  <h2>
-                    待评价 <span>{pending.length}</span>
-                  </h2>
-                  <input
-                    placeholder="搜索待评价动画…"
-                    value={filter}
-                    onChange={(e) => setFilter(e.target.value)}
-                  />
                 </div>
-                <div className="pending-cards">
-                  {pending
-                    .filter(
-                      (e) =>
-                        e.anime.name.includes(filter) ||
-                        e.anime.original.includes(filter),
-                    )
-                    .map((e) => card(e.anime, null))}
-                  {!pending.length && (
-                    <div className="pending-empty">
-                      <span>＋</span>
-                      <p>
-                        {task.entries.length
-                          ? "所有动画都已找到位置"
-                          : "你的下一部心头好，从这里开始"}
-                      </p>
-                      <button onClick={() => setPanel(task.id)}>
-                        搜索、导入或手动添加动画 →
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </section>
+                <section
+                  className="pending"
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    drop(null);
+                  }}
+                >
+                  <div className="pending-header">
+                    <h2>
+                      待评价 <span>{pending.length}</span>
+                    </h2>
+                    <input
+                      placeholder="搜索待评价动画…"
+                      value={filter}
+                      onChange={(e) => setFilter(e.target.value)}
+                    />
+                  </div>
+                  <div className="pending-cards" data-drag-scroll>
+                    {pending
+                      .filter(
+                        (e) =>
+                          e.anime.name.includes(filter) ||
+                          e.anime.original.includes(filter),
+                      )
+                      .map((e) => card(e.anime, null))}
+                    {!pending.length && (
+                      <div className="pending-empty">
+                        <span>＋</span>
+                        <p>
+                          {task.entries.length
+                            ? "所有动画都已找到位置"
+                            : "你的下一部心头好，从这里开始"}
+                        </p>
+                        <button onClick={() => setPanel(task.id)}>
+                          搜索、导入或手动添加动画 →
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              </div>
             )}
-            <footer>
-              拖动卡片调整梯度和顺序 <span>·</span> ⌘ Z 撤销最近评价{" "}
-              <span>·</span> 自动保存到本机
-            </footer>
           </>
         )}
       </main>

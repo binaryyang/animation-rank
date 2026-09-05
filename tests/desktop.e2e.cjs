@@ -219,6 +219,75 @@ const os = require("node:os");
       .selectOption("manual");
     await page.getByRole("button", { name: "加入榜单 →" }).click();
     await expect(page.locator(".anime-card")).toHaveCount(172);
+    // Fixed panes and direct drops remain reachable at minimum window size.
+    await application.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].setSize(1000, 700),
+    );
+    await page.locator(".pending-header input").fill("成功项");
+    await expect(page.locator(".pending .anime-card")).toHaveCount(1);
+    await page
+      .locator(".board-scroll")
+      .evaluate((el) => (el.scrollTop = el.scrollHeight));
+    const transfer = await page.evaluateHandle(() => new DataTransfer());
+    await page
+      .locator(".pending .anime-card")
+      .dispatchEvent("dragstart", { dataTransfer: transfer });
+    await expect(page.locator(".dropbar")).toHaveCount(0);
+    const bounds = await page.locator(".board-scroll").boundingBox();
+    expect(bounds.y).toBeLessThan(180);
+    expect(bounds.height).toBeGreaterThan(450);
+    await page.screenshot({ path: path.join(dir, "minimum-drag.png") });
+    await page.locator(".board-scroll").evaluate((el) => (el.scrollTop = 0));
+    await page
+      .locator(".tier-row")
+      .first()
+      .dispatchEvent("drop", { dataTransfer: transfer });
+    await expect(page.locator(".dropbar")).toHaveCount(0);
+    await expect(page.locator(".pending .anime-card")).toHaveCount(0);
+    await page.getByRole("button", { name: "↶ 撤销" }).click();
+    await expect(page.locator(".pending .anime-card")).toHaveCount(1);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    // Edge scrolling stops once the pointer leaves the scrolling area.
+    await page.locator(".board-scroll").evaluate((el) => (el.scrollTop = 0));
+    await page
+      .locator(".pending .anime-card")
+      .dispatchEvent("dragstart", { dataTransfer: transfer });
+    const area = await page.locator(".board-scroll").boundingBox();
+    await page.locator(".board-scroll").dispatchEvent("dragover", {
+      dataTransfer: transfer,
+      clientX: area.x + 50,
+      clientY: area.y + area.height - 5,
+    });
+    await expect
+      .poll(() => page.locator(".board-scroll").evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(20);
+    await page
+      .locator(".toolbar")
+      .dispatchEvent("dragover", { dataTransfer: transfer });
+    const stopped = await page
+      .locator(".board-scroll")
+      .evaluate((el) => el.scrollTop);
+    await page.waitForTimeout(100);
+    expect(
+      await page.locator(".board-scroll").evaluate((el) => el.scrollTop),
+    ).toBe(stopped);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".dropbar")).toHaveCount(0);
+    // Task changes invalidate the drag before any destination can receive it.
+    await page
+      .locator(".pending .anime-card")
+      .dispatchEvent("dragstart", { dataTransfer: transfer });
+    await page.locator(".task-link").first().click();
+    await expect(page.locator(".dropbar")).toHaveCount(0);
+    await page
+      .locator(".tier-row")
+      .first()
+      .dispatchEvent("drop", { dataTransfer: transfer });
+    await expect(page.locator(".anime-card")).toHaveCount(2);
     console.log(
       JSON.stringify({
         passed: true,
