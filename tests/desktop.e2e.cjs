@@ -109,10 +109,30 @@ const os = require("node:os");
       });
     }, dir);
     await page.getByRole("button", { name: "↗ 导出图片" }).click();
+    await expect(
+      page.getByRole("dialog", { name: "导出图片预览" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "保存图片", exact: true }),
+    ).toBeEnabled();
+    await page
+      .getByRole("checkbox", { name: "显示动画名称", exact: true })
+      .check();
+    await expect(
+      page.getByRole("button", { name: "保存图片", exact: true }),
+    ).toBeEnabled();
+    const previewData = await page
+      .locator(".preview-canvas img")
+      .getAttribute("src");
+    await page.screenshot({ path: path.join(dir, "export-preview.png") });
+    await page.getByRole("button", { name: "保存图片", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("榜单图片已导出");
     expect(
       (await readFile(path.join(dir, "board.png"))).subarray(1, 4).toString(),
     ).toBe("PNG");
+    expect(
+      (await readFile(path.join(dir, "board.png"))).toString("base64"),
+    ).toBe(previewData.split(",")[1]);
     await page.screenshot({
       path: path.join(dir, "desktop.png"),
       fullPage: true,
@@ -127,13 +147,47 @@ const os = require("node:os");
     await expect(page.locator(".task-link")).toHaveCount(3);
     await expect(page.locator(".anime-card")).toHaveCount(2);
     await expect(page.locator(".save-status")).toContainText("已保存");
+    await expect(page.locator(".board .card-button > span")).toHaveCount(0);
+    await expect(page.locator(".pending .card-button > span")).toHaveCount(1);
+    await page.getByRole("checkbox", { name: "显示名称", exact: true }).check();
+    await expect(page.locator(".board .card-button > span")).toHaveCount(1);
+    const beforeCollapse = await page.locator(".board-scroll").boundingBox();
+    await page.getByRole("button", { name: "收起侧栏", exact: true }).click();
+    await expect(page.locator(".sidebar")).toBeHidden();
+    const afterCollapse = await page.locator(".board-scroll").boundingBox();
+    expect(afterCollapse.width - beforeCollapse.width).toBeGreaterThan(150);
+    await expect(page.locator(".save-status")).toContainText("已保存");
     await application.close();
     application = await launch();
     page = await application.firstWindow();
     await expect(page.locator(".task-link")).toHaveCount(3);
     await expect(page.locator(".anime-card")).toHaveCount(2);
+    await expect(page.locator(".sidebar")).toBeHidden();
+    await expect(
+      page.getByRole("checkbox", { name: "显示名称", exact: true }),
+    ).toBeChecked();
+    await page.getByRole("button", { name: "展开侧栏", exact: true }).click();
+    await page
+      .getByRole("checkbox", { name: "显示名称", exact: true })
+      .uncheck();
     expect(errors).toEqual([]);
     // Import a long fixture and verify automatic multipage PNG output.
+    const sampleCover = await page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 320;
+      canvas.height = 320;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#345f73";
+      ctx.fillRect(0, 0, 320, 320);
+      ctx.fillStyle = "#e4c077";
+      ctx.beginPath();
+      ctx.arc(160, 115, 62, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.font = "24px sans-serif";
+      ctx.fillText("封面裁切测试", 88, 248);
+      return canvas.toDataURL("image/png");
+    });
     const fixture = {
       version: 1,
       task: {
@@ -147,7 +201,12 @@ const os = require("node:os");
             original: "",
             date: "",
             summary: "",
-            cover: "",
+            cover:
+              i % 3 === 0
+                ? sampleCover
+                : i % 3 === 1
+                  ? "data:image/png;base64,broken"
+                  : "",
           },
           tier: i % 6,
         })),
@@ -167,6 +226,19 @@ const os = require("node:os");
     await page.getByRole("button", { name: "↥ 导入任务文件" }).click();
     await expect(page.locator(".anime-card")).toHaveCount(170);
     await page.getByRole("button", { name: "↗ 导出图片" }).click();
+    await expect(
+      page.getByRole("dialog", { name: "导出图片预览" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "保存图片", exact: true }),
+    ).toBeEnabled();
+    await page.getByRole("button", { name: "下一页", exact: true }).click();
+    await expect(page.locator(".preview-canvas img")).toHaveAttribute(
+      "alt",
+      "榜单预览，第 2 页",
+    );
+    await page.getByRole("button", { name: "上一页", exact: true }).click();
+    await page.getByRole("button", { name: "保存图片", exact: true }).click();
     await expect(page.getByRole("status")).toContainText("榜单图片已导出");
     for (const filename of ["large-1.png", "large-2.png"]) {
       const dimensions = await application.evaluate(
@@ -307,6 +379,9 @@ const os = require("node:os");
           "rename/copy/delete",
           "long PNG pagination",
           "batch partial failure",
+          "collapsed sidebar and preference persistence",
+          "name visibility",
+          "preview exact PNG and pagination",
         ],
       }),
     );

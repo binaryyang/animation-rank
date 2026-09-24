@@ -1,4 +1,4 @@
-import { Task, tiers } from "./model";
+import { Anime, Task, tiers } from "./model";
 export const colors = [
   "#ef7973",
   "#f4b16f",
@@ -7,102 +7,238 @@ export const colors = [
   "#94b9df",
   "#bac0cd",
 ];
-export async function renderImages(task: Task): Promise<string[]> {
-  const width = 1440,
-    columns = 10,
-    cardW = 118,
-    cardH = 204,
-    left = 160,
-    maxHeight = 2800;
-  const groups = tiers.flatMap((label, tier) => {
-    const entries = task.entries.filter((e) => e.tier === tier);
-    const rows = Math.max(1, Math.ceil(entries.length / columns));
-    return Array.from({ length: rows }, (_, i) => ({
-      label,
-      tier,
-      entries: entries.slice(i * columns, (i + 1) * columns),
-      continued: i > 0,
-    }));
-  });
-  const perPage = Math.floor((maxHeight - 170) / cardH),
-    images: string[] = [];
-  for (let start = 0; start < groups.length; start += perPage) {
-    const rows = groups.slice(start, start + perPage);
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = 150 + rows.length * cardH;
-    const ctx = canvas.getContext("2d")!;
-    ctx.fillStyle = "#f7f8fa";
-    ctx.fillRect(0, 0, width, canvas.height);
-    ctx.fillStyle = "#202832";
-    ctx.font = "bold 30px sans-serif";
-    ctx.fillText(task.name, width * 0.035, 57, width - 100);
-    ctx.font = "16px sans-serif";
-    ctx.fillStyle = "#79818c";
-    ctx.fillText(
-      `动画梯度排行 · ${task.entries.filter((e) => e.tier !== null).length} 部已评价${groups.length > perPage ? ` · 第 ${images.length + 1} 页` : ""}`,
-      50,
-      94,
+export type ExportOptions = { showNames: boolean };
+export type ExportBlock = {
+  tier: number;
+  rows: Anime[][];
+  continued: boolean;
+  y: number;
+  height: number;
+};
+export type ExportPage = { blocks: ExportBlock[]; height: number };
+const width = 1440,
+  top = 148,
+  bottom = 40,
+  maxHeight = 2800,
+  columns = 10,
+  coverWidth = 112,
+  coverHeight = 168,
+  gap = 12;
+export function layoutExport(task: Task, options: ExportOptions): ExportPage[] {
+  const rowHeight = options.showNames ? 238 : 184;
+  const pages: ExportPage[] = [];
+  let page: ExportPage = { blocks: [], height: top };
+  const finish = () => {
+    page.height += bottom;
+    pages.push(page);
+    page = { blocks: [], height: top };
+  };
+  for (let tier = 0; tier < tiers.length; tier++) {
+    const entries = task.entries
+      .filter((e) => e.tier === tier)
+      .map((e) => e.anime);
+    if (!entries.length) {
+      if (page.height + 60 + bottom > maxHeight) finish();
+      page.blocks.push({
+        tier,
+        rows: [],
+        continued: false,
+        y: page.height,
+        height: 48,
+      });
+      page.height += 60;
+      continue;
+    }
+    const rows = Array.from(
+      { length: Math.ceil(entries.length / columns) },
+      (_, i) => entries.slice(i * columns, (i + 1) * columns),
     );
-    for (let r = 0; r < rows.length; r++) {
-      const row = rows[r],
-        y = 125 + r * cardH;
-      ctx.fillStyle = colors[row.tier];
-      ctx.fillRect(30, y, 115, cardH - 8);
-      ctx.fillStyle = "#293038";
-      ctx.font = "bold 23px sans-serif";
-      ctx.fillText(row.label, 43, y + cardH / 2, 90);
-      for (let i = 0; i < row.entries.length; i++) {
-        const a = row.entries[i].anime,
-          x = left + i * (cardW + 8);
-        ctx.fillStyle = "#e4e7ec";
-        ctx.fillRect(x, y, cardW, 132);
-        if (a.cover.startsWith("data:image/")) {
+    let cursor = 0;
+    while (cursor < rows.length) {
+      const capacity = Math.floor(
+        (maxHeight - bottom - page.height - 32) / rowHeight,
+      );
+      if (capacity < 1) {
+        finish();
+        continue;
+      }
+      const chunk = rows.slice(cursor, cursor + capacity),
+        height = chunk.length * rowHeight + 20;
+      page.blocks.push({
+        tier,
+        rows: chunk,
+        continued: cursor > 0,
+        y: page.height,
+        height,
+      });
+      page.height += height + 12;
+      cursor += chunk.length;
+      if (cursor < rows.length) finish();
+    }
+  }
+  if (page.blocks.length) finish();
+  return pages;
+}
+function rounded(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+  color: string,
+) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.roundRect(x, y, w, h, r);
+  ctx.fill();
+}
+function textLines(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  maxLines = 3,
+) {
+  const chars = [...text];
+  let cursor = 0;
+  for (let line = 0; line < maxLines && cursor < chars.length; line++) {
+    let value = "";
+    while (
+      cursor < chars.length &&
+      ctx.measureText(value + chars[cursor]).width <= maxWidth
+    ) {
+      value += chars[cursor++];
+    }
+    if (line === maxLines - 1 && cursor < chars.length) {
+      while (value && ctx.measureText(value + "…").width > maxWidth)
+        value = value.slice(0, -1);
+      value += "…";
+    }
+    ctx.fillText(value, x, y + line * lineHeight);
+  }
+}
+export async function renderImages(
+  task: Task,
+  options: ExportOptions = { showNames: false },
+): Promise<string[]> {
+  const pages = layoutExport(task, options),
+    output: string[] = [];
+  const decoded = new Map<string, Promise<HTMLImageElement | null>>();
+  const decode = (cover: string) => {
+    if (!decoded.has(cover))
+      decoded.set(
+        cover,
+        (async () => {
+          if (!cover.startsWith("data:image/")) return null;
           try {
-            const img = new Image();
-            img.src = a.cover;
-            await img.decode();
-            const scale = Math.max(cardW / img.width, 132 / img.height),
-              sw = cardW / scale,
-              sh = 132 / scale;
+            const image = new Image();
+            image.src = cover;
+            await image.decode();
+            return image;
+          } catch {
+            return null;
+          }
+        })(),
+      );
+    return decoded.get(cover)!;
+  };
+  for (let p = 0; p < pages.length; p++) {
+    const page = pages[p],
+      canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = page.height;
+    const ctx = canvas.getContext("2d")!;
+    ctx.fillStyle = "#f5f6f8";
+    ctx.fillRect(0, 0, width, page.height);
+    rounded(ctx, 32, 35, 5, 48, 2, "#346757");
+    ctx.fillStyle = "#24352f";
+    ctx.font = "600 32px sans-serif";
+    textLines(ctx, task.name, 52, 66, 1180, 38, 1);
+    ctx.fillStyle = "#819087";
+    ctx.font = "15px sans-serif";
+    ctx.fillText(
+      `动画梯度排行  /  ${task.entries.filter((e) => e.tier !== null).length} 部已评价`,
+      52,
+      102,
+    );
+    ctx.textAlign = "right";
+    ctx.fillText(`${p + 1} / ${pages.length}`, 1408, 66);
+    ctx.textAlign = "left";
+    for (const block of page.blocks) {
+      rounded(ctx, 32, block.y, 1376, block.height, 12, "#ffffff");
+      ctx.save();
+      ctx.beginPath();
+      ctx.roundRect(32, block.y, 1376, block.height, 12);
+      ctx.clip();
+      ctx.fillStyle = colors[block.tier];
+      ctx.fillRect(32, block.y, 116, block.height);
+      ctx.restore();
+      ctx.fillStyle = "#303c39";
+      ctx.font = "600 24px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(
+        tiers[block.tier],
+        90,
+        block.y + block.height / 2 + (block.continued ? -3 : 8),
+      );
+      if (block.continued) {
+        ctx.font = "12px sans-serif";
+        ctx.fillText("续", 90, block.y + block.height / 2 + 20);
+      }
+      ctx.textAlign = "left";
+      if (!block.rows.length) {
+        ctx.fillStyle = "#abb4ae";
+        ctx.font = "13px sans-serif";
+        ctx.fillText("暂无动画", 170, block.y + 30);
+      }
+      for (let r = 0; r < block.rows.length; r++)
+        for (let c = 0; c < block.rows[r].length; c++) {
+          const anime = block.rows[r][c],
+            x = 168 + c * (coverWidth + gap),
+            y = block.y + 16 + r * (options.showNames ? 238 : 184);
+          const image = await decode(anime.cover);
+          rounded(ctx, x, y, coverWidth, coverHeight, 7, "#e8eeea");
+          if (image) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.roundRect(x, y, coverWidth, coverHeight, 7);
+            ctx.clip();
+            const scale = Math.max(
+                coverWidth / image.width,
+                coverHeight / image.height,
+              ),
+              sw = coverWidth / scale,
+              sh = coverHeight / scale;
             ctx.drawImage(
-              img,
-              (img.width - sw) / 2,
-              (img.height - sh) / 2,
+              image,
+              (image.width - sw) / 2,
+              (image.height - sh) / 2,
               sw,
               sh,
               x,
               y,
-              cardW,
-              132,
+              coverWidth,
+              coverHeight,
             );
-          } catch {}
-        }
-        ctx.fillStyle = "#26313e";
-        ctx.font = "14px sans-serif";
-        let line = "",
-          lineNo = 0;
-        const chars = [...a.name];
-        for (let c = 0; c < chars.length; c++) {
-          if (ctx.measureText(line + chars[c]).width > cardW) {
-            ctx.fillText(line, x, y + 151 + lineNo * 18);
-            lineNo++;
-            line = "";
-            if (lineNo === 2) {
-              let tail = chars.slice(c).join("");
-              while (ctx.measureText(tail + "…").width > cardW)
-                tail = tail.slice(0, -1);
-              ctx.fillText(tail + "…", x, y + 151 + lineNo * 18);
-              break;
-            }
+            ctx.restore();
+          } else {
+            ctx.fillStyle = "#8b9f91";
+            ctx.font = "26px sans-serif";
+            ctx.fillText("✦", x + 43, y + 52);
+            ctx.font = "13px sans-serif";
+            textLines(ctx, anime.name, x + 10, y + 87, coverWidth - 20, 20);
           }
-          line += chars[c];
-          if (c === chars.length - 1)
-            ctx.fillText(line, x, y + 151 + lineNo * 18);
+          if (options.showNames) {
+            ctx.fillStyle = "#3f4c46";
+            ctx.font = "14px sans-serif";
+            textLines(ctx, anime.name, x, y + 189, coverWidth, 19);
+          }
         }
-      }
     }
-    images.push(canvas.toDataURL("image/png"));
+    output.push(canvas.toDataURL("image/png"));
   }
-  return images;
+  return output;
 }

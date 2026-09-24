@@ -16,7 +16,9 @@ export class Store {
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT")
-        return { state: { version: 1, tasks: [], activeId: null } };
+        return {
+          state: stateSchema.parse({ version: 1, tasks: [], activeId: null }),
+        };
       try {
         return {
           state: stateSchema.parse(

@@ -12,7 +12,8 @@ import {
   moveEntry,
   tiers,
 } from "./model";
-import { colors, renderImages } from "./export";
+import { colors } from "./export";
+import { ExportPreview } from "./ExportPreview";
 import "./style.css";
 declare global {
   interface Window {
@@ -59,6 +60,7 @@ function App() {
     const timer = window.setTimeout(() => setNotice(""), 4000);
     return () => window.clearTimeout(timer);
   }, [notice]);
+  const [preview, setPreview] = useState<Task | null>(null);
   const undo = useRef<{ taskId: string; entries: Task["entries"] }[]>([]);
   const drag = useRef<string | null>(null);
   const dragTask = useRef<string | null>(null);
@@ -74,7 +76,7 @@ function App() {
   }
   useLayoutEffect(() => {
     stopDrag();
-  }, [state.activeId, quick, panel, modal]);
+  }, [state.activeId, quick, panel, modal, preview]);
   useEffect(() => {
     if (!dragging) return;
     let frame: number;
@@ -211,7 +213,8 @@ function App() {
         ) ||
         modal ||
         panel ||
-        detail
+        detail ||
+        preview
       )
         return;
       if ((e.metaKey || e.ctrlKey) && e.key === "z") {
@@ -236,11 +239,13 @@ function App() {
   }
   async function exportFile(image: boolean) {
     if (!task) return;
+    if (image) {
+      setPreview(structuredClone(task));
+      return;
+    }
     setExporting(true);
     try {
-      const ok = image
-        ? await api.exportImages(await renderImages(task))
-        : await api.exportTask(task);
+      const ok = await api.exportTask(task);
       if (ok) setNotice(image ? "榜单图片已导出" : "任务文件已导出");
     } catch (e) {
       setNotice("导出失败：" + String(e));
@@ -297,15 +302,26 @@ function App() {
           drop(tier, a.id);
         }}
       >
-        <button className="card-button" onClick={() => setDetail(a)}>
+        <button
+          className="card-button"
+          title={a.name}
+          aria-label={a.name}
+          onClick={() => setDetail(a)}
+        >
           <Cover anime={a} />
-          <span title={a.name}>{a.name}</span>
+          {(tier === null || state.preferences.showNames) && (
+            <span title={a.name}>{a.name}</span>
+          )}
         </button>
       </div>
     );
   }
   return (
-    <div className="app">
+    <div
+      className={
+        "app" + (state.preferences.sidebarCollapsed ? " sidebar-collapsed" : "")
+      }
+    >
       <aside className="sidebar">
         <div className="brand">
           <div className="brand-icon">梯</div>
@@ -365,6 +381,25 @@ function App() {
       </aside>
       <main>
         <header className="topbar">
+          <button
+            className="sidebar-toggle"
+            aria-label={
+              state.preferences.sidebarCollapsed ? "展开侧栏" : "收起侧栏"
+            }
+            aria-expanded={!state.preferences.sidebarCollapsed}
+            disabled={!loaded}
+            onClick={() =>
+              setState((s) => ({
+                ...s,
+                preferences: {
+                  ...s.preferences,
+                  sidebarCollapsed: !s.preferences.sidebarCollapsed,
+                },
+              }))
+            }
+          >
+            ☰
+          </button>
           <span>
             我的榜单 <span className="slash">/</span>{" "}
             {task?.name || "开始一份新榜单"}
@@ -458,6 +493,24 @@ function App() {
                 </button>
               </div>
               <div className="tools">
+                {!quick && (
+                  <label className="names-toggle">
+                    <input
+                      type="checkbox"
+                      checked={state.preferences.showNames}
+                      onChange={(e) =>
+                        setState((s) => ({
+                          ...s,
+                          preferences: {
+                            ...s.preferences,
+                            showNames: e.target.checked,
+                          },
+                        }))
+                      }
+                    />
+                    显示名称
+                  </label>
+                )}
                 <button
                   onClick={revert}
                   disabled={
@@ -600,6 +653,13 @@ function App() {
           </>
         )}
       </main>
+      {preview && (
+        <ExportPreview
+          task={preview}
+          close={() => setPreview(null)}
+          notify={setNotice}
+        />
+      )}
       {panel && (
         <ImportPanel
           target={state.tasks.find((t) => t.id === panel)}

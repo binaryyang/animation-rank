@@ -3,13 +3,13 @@ import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { Store, queryBangumi } from "../electron/service";
-import { State } from "../src/model";
+import { State, emptyState } from "../src/model";
 describe("持久化", () => {
   it("串行原子写入，重启加载，主文件损坏时恢复备份", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "animation-rank-test-"));
     try {
       const store = new Store(dir);
-      const first: State = { version: 1, tasks: [], activeId: null };
+      const first: State = structuredClone(emptyState);
       expect((await store.load()).state).toEqual(first);
       const second: State = {
         ...first,

@@ -34,6 +34,12 @@ export const stateSchema = z.object({
   version: z.literal(1),
   tasks: z.array(taskSchema),
   activeId: z.string().nullable(),
+  preferences: z
+    .object({
+      sidebarCollapsed: z.boolean().default(false),
+      showNames: z.boolean().default(false),
+    })
+    .default({}),
 });
 export const exportSchema = z.object({
   version: z.literal(1),
@@ -42,7 +48,11 @@ export const exportSchema = z.object({
 export type Anime = z.infer<typeof animeSchema>;
 export type Task = z.infer<typeof taskSchema>;
 export type State = z.infer<typeof stateSchema>;
-export const emptyState: State = { version: 1, tasks: [], activeId: null };
+export const emptyState: State = stateSchema.parse({
+  version: 1,
+  tasks: [],
+  activeId: null,
+});
 export function createTask(name: string): Task {
   return {
     id: crypto.randomUUID(),
