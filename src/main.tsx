@@ -15,6 +15,7 @@ import {
 import { colors } from "./export";
 import { ExportPreview } from "./ExportPreview";
 import "./style.css";
+import iconUrl from "../build/icon.png";
 declare global {
   interface Window {
     desktop: DesktopAPI;
@@ -324,7 +325,9 @@ function App() {
     >
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-icon">梯</div>
+          <div className="brand-icon">
+            <img src={iconUrl} alt="" />
+          </div>
           <div>
             <strong>动画梯度</strong>
             <small>ANIME TIER STUDIO</small>

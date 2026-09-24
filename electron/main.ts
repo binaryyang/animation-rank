@@ -8,6 +8,9 @@ let win: BrowserWindow;
 if (process.env.ANIMATION_RANK_DATA_DIR)
   app.setPath("userData", process.env.ANIMATION_RANK_DATA_DIR);
 app.whenReady().then(() => {
+  if (!app.isPackaged) {
+    app.dock?.setIcon(path.join(__dirname, "../../build/dock-icon.png"));
+  }
   const store = new Store(app.getPath("userData"));
   let ready = false;
   ipcMain.handle("load", async () => {
