@@ -10,6 +10,7 @@ import {
   record,
   undo,
   redo,
+  removeEntries,
   State,
 } from "../src/model";
 const anime = (id: string) => ({
@@ -58,6 +59,18 @@ describe("任务与评价", () => {
       exportSchema.parse(JSON.parse(JSON.stringify({ version: 1, task }))),
     ).toEqual({ version: 1, task });
     expect(() => exportSchema.parse({ version: 2, task })).toThrow();
+  });
+});
+describe("移除动画", () => {
+  it("只移除指定条目，保留其余顺序与等级", () => {
+    let t = addAnime(createTask("t"), ["1", "2", "3"].map(anime));
+    t = moveEntry(t, "3", 0);
+    const next = removeEntries(t, ["1", "missing"]);
+    expect(next.entries.map((e) => [e.anime.id, e.tier])).toEqual([
+      ["2", null],
+      ["3", 0],
+    ]);
+    expect(t.entries).toHaveLength(3);
   });
 });
 describe("撤销与重做", () => {

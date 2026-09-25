@@ -15,6 +15,7 @@ import {
   moveEntry,
   record,
   redo,
+  removeEntries,
   tiers,
   undo,
 } from "./model";
@@ -233,6 +234,17 @@ function App() {
       `已将「${name}」移至${tier === null ? "待评价" : tiers[tier]}`,
       task.id,
       (t) => moveEntry(t, id, tier, before),
+    );
+  }
+  function remove(ids: string[]) {
+    if (!task || !ids.length) return;
+    const name = task.entries.find((e) => e.anime.id === ids[0])?.anime.name;
+    updateTask(
+      ids.length === 1
+        ? `已从榜单移除「${name}」`
+        : `已从榜单移除 ${ids.length} 部动画`,
+      task.id,
+      (t) => removeEntries(t, ids),
     );
   }
   useEffect(() => {
@@ -825,6 +837,15 @@ function App() {
                 移回待评价
               </button>
             </div>
+            <button
+              className="danger-text remove-entry"
+              onClick={() => {
+                remove([detail.id]);
+                setDetail(null);
+              }}
+            >
+              从榜单移除
+            </button>
           </div>
         </div>
       )}

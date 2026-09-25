@@ -84,6 +84,10 @@ export function moveEntry(
   entries.splice(index < 0 ? entries.length : index, 0, { ...entry, tier });
   return { ...task, entries };
 }
+export function removeEntries(task: Task, ids: string[]): Task {
+  const set = new Set(ids);
+  return { ...task, entries: task.entries.filter((e) => !set.has(e.anime.id)) };
+}
 export function addAnime(task: Task, anime: Anime[]): Task {
   const seen = new Set(task.entries.map((e) => e.anime.id));
   return {

@@ -87,6 +87,16 @@ const os = require("node:os");
       .getByRole("button", { name: "重做", exact: true })
       .click();
     await expect(page.locator(".anime-card")).toHaveCount(2);
+    // Removing an entry from the detail dialog is undoable.
+    await page.locator(".pending .card-button").first().click();
+    await page.getByRole("button", { name: "从榜单移除", exact: true }).click();
+    await expect(page.locator(".anime-card")).toHaveCount(1);
+    await expect(page.getByRole("status")).toContainText("已从榜单移除");
+    await page
+      .getByRole("status")
+      .getByRole("button", { name: "撤销", exact: true })
+      .click();
+    await expect(page.locator(".anime-card")).toHaveCount(2);
     // Rename, duplicate and delete remain isolated to the selected task.
     await page.getByRole("button", { name: "重命名", exact: true }).click();
     await page.locator(".dialog textarea").fill("重命名验证");

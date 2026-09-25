@@ -623,6 +623,13 @@ footer {
   font-size: 11px;
   border: 0;
 }
+.detail .remove-entry {
+  margin-top: 16px;
+  font-size: 11px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
 .quick-view {
   text-align: center;
   margin: 0 36px;
