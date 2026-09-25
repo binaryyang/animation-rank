@@ -16,7 +16,7 @@ npm run pack
 node tests/desktop.e2e.cjs --packaged
 ```
 
-`dev` 编译并启动 Electron，修改后重新运行即可。`pack` 生成当前目标 arm64 的应用，位于 `release/mac-arm64/动画梯度排行.app`。应用未签名公证。
+`dev` 编译并启动 Electron，修改后重新运行即可。`pack` 生成当前目标 arm64 的应用，位于 `release/mac-arm64/动画梯度排行.app`。打包时使用 ad-hoc 签名，没有 Apple 公证。从浏览器下载后若提示「已损坏」，在终端执行 `xattr -cr /Applications/动画梯度排行.app` 后再打开。
 
 桌面测试在临时目录启动真实 Electron 窗口，覆盖任务创建与管理、拖拽、快捷键、导出、重启和部分失败导入。`npm run test:live` 额外检查 Bangumi 公开搜索和季度接口，需要联网。
 

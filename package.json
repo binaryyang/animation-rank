@@ -1,6 +1,6 @@
 {
   "name": "animation-rank",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "动画梯度排行",
   "author": "Animation Rank",
@@ -45,7 +45,7 @@
       "dist-electron/**/*"
     ],
     "mac": {
-      "identity": null,
+      "identity": "-",
       "category": "public.app-category.entertainment"
     }
   }
