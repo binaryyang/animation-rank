@@ -4,6 +4,7 @@ import {
   createTask,
   moveEntry,
   moveEntries,
+  bestMatch,
   exportSchema,
   tiers,
   emptyHistory,
@@ -61,6 +62,20 @@ describe("任务与评价", () => {
       exportSchema.parse(JSON.parse(JSON.stringify({ version: 1, task }))),
     ).toEqual({ version: 1, task });
     expect(() => exportSchema.parse({ version: 2, task })).toThrow();
+  });
+});
+describe("批量名称匹配", () => {
+  it("优先完全匹配中文名或原名（忽略大小写、空格与标点），否则取第一个", () => {
+    const list = [
+      { ...anime("a"), name: "进击的巨人 第二季" },
+      { ...anime("b"), name: "进击的巨人", original: "Shingeki no Kyojin" },
+      { ...anime("c"), name: "别的", original: "Frieren: Beyond" },
+    ];
+    expect(bestMatch("进击的巨人", list)?.id).toBe("b");
+    expect(bestMatch("shingeki no kyojin", list)?.id).toBe("b");
+    expect(bestMatch("Frieren Beyond", list)?.id).toBe("c");
+    expect(bestMatch("完全不同", list)?.id).toBe("a");
+    expect(bestMatch("x", [])).toBeUndefined();
   });
 });
 describe("批量移动", () => {

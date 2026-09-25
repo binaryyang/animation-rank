@@ -191,6 +191,16 @@ export function redo(history: History, state: State) {
     },
   };
 }
+const normalizeName = (s: string) =>
+  s.toLowerCase().replace(/[\s\p{P}\p{S}]/gu, "");
+export function bestMatch(name: string, candidates: Anime[]) {
+  const key = normalizeName(name);
+  return (
+    candidates.find(
+      (a) => normalizeName(a.name) === key || normalizeName(a.original) === key,
+    ) ?? candidates[0]
+  );
+}
 export type Query = {
   mode: "search" | "season" | "collection";
   keyword: string;

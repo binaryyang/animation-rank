@@ -826,10 +826,18 @@ footer {
   flex: 1;
   font-size: 12px;
 }
-.search-submit {
-  width: 100%;
+.search-actions {
+  display: flex;
+  gap: 8px;
   margin-top: 12px;
+}
+.search-submit {
+  flex: 1;
   font-size: 12px;
+}
+.search-actions button:not(.search-submit) {
+  font-size: 12px;
+  white-space: nowrap;
 }
 .collection-status {
   font-size: 12px;

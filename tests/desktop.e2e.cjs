@@ -368,11 +368,18 @@ const os = require("node:os");
     await expect(page.locator(".batch-row").nth(1)).toContainText(
       "模拟网络失败",
     );
-    await page
-      .locator(".batch-row")
-      .nth(0)
-      .locator("select")
-      .selectOption("bgm:123");
+    // The best candidate is preselected; failed rows can be retried alone.
+    await expect(
+      page.locator(".batch-row").nth(0).locator("select"),
+    ).toHaveValue("bgm:123");
+    await expect(page.locator(".panel-footer")).toContainText("已确认 1 部");
+    await page.getByRole("button", { name: "重试失败项" }).click();
+    await expect(page.locator(".batch-row").nth(1)).toContainText(
+      "模拟网络失败",
+    );
+    await expect(
+      page.locator(".batch-row").nth(0).locator("select"),
+    ).toHaveValue("bgm:123");
     await page
       .locator(".batch-row")
       .nth(1)

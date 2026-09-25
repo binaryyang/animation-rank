@@ -17,6 +17,7 @@ import {
   redo,
   removeEntries,
   updateAnime,
+  bestMatch,
   tiers,
   undo,
 } from "./model";
@@ -1010,6 +1011,13 @@ function App() {
   );
 }
 
+type BatchRow = {
+  name: string;
+  candidates: Anime[];
+  chosen: string;
+  error?: string;
+  pending?: boolean;
+};
 function ImportPanel({
   target,
   close,
@@ -1034,9 +1042,8 @@ function ImportPanel({
     [offset, setOffset] = useState(0),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
-    [batch, setBatch] = useState<
-      { name: string; candidates: Anime[]; chosen: string; error?: string }[]
-    >([]),
+    [batch, setBatch] = useState<BatchRow[]>([]),
+    [progress, setProgress] = useState({ done: 0, total: 0 }),
     [manual, setManual] = useState({
       name: "",
       original: "",
@@ -1099,39 +1106,63 @@ function ImportPanel({
       if (token === generation.current) setBusy(false);
     }
   }
-  async function matchBatch() {
+  async function matchBatch(onlyFailed = false) {
     const token = ++generation.current;
     setBusy(true);
     setError("");
-    const rows: {
-      name: string;
-      candidates: Anime[];
-      chosen: string;
-      error?: string;
-    }[] = [];
-    for (const name of [
-      ...new Set(
-        keyword
-          .split("\n")
-          .map((n) => n.trim())
-          .filter(Boolean),
-      ),
-    ]) {
-      try {
-        const page = await api.query({
-          mode: "search",
-          keyword: name,
-          offset: 0,
-        });
-        const candidates = await api.cache(page.items.slice(0, 5));
-        rows.push({ name, candidates, chosen: "" });
-      } catch (e) {
-        rows.push({ name, candidates: [], chosen: "", error: String(e) });
+    const rows: BatchRow[] = onlyFailed
+      ? batch.map((r) =>
+          r.error ? { ...r, error: undefined, pending: true } : r,
+        )
+      : [
+          ...new Set(
+            keyword
+              .split("\n")
+              .map((n) => n.trim())
+              .filter(Boolean),
+          ),
+        ].map((name) => ({ name, candidates: [], chosen: "", pending: true }));
+    const queue = rows.flatMap((r, i) => (r.pending ? [i] : []));
+    const total = queue.length;
+    let done = 0;
+    setBatch([...rows]);
+    setProgress({ done, total });
+    async function worker() {
+      for (let i = queue.shift(); i !== undefined; i = queue.shift()) {
+        const name = rows[i].name;
+        let row: BatchRow;
+        try {
+          const page = await api.query({
+            mode: "search",
+            keyword: name,
+            offset: 0,
+          });
+          const candidates = await api.cache(page.items.slice(0, 5));
+          const best = bestMatch(
+            name,
+            candidates.filter((a) => !existing.has(a.id)),
+          );
+          row = { name, candidates, chosen: best?.id ?? "" };
+        } catch (e) {
+          row = { name, candidates: [], chosen: "", error: String(e) };
+        }
+        if (token !== generation.current) return;
+        rows[i] = row;
+        setBatch([...rows]);
+        setProgress({ done: ++done, total });
       }
-      if (token !== generation.current) return;
-      setBatch([...rows]);
     }
+    await Promise.all([worker(), worker(), worker()]);
+    if (token === generation.current) setBusy(false);
+  }
+  function cancelBatch() {
+    generation.current++;
     setBusy(false);
+    setBatch((rows) =>
+      rows.map((r) =>
+        r.pending ? { ...r, pending: false, error: "已取消。" } : r,
+      ),
+    );
   }
   async function commit(anime: Anime[]) {
     if (!target) {
@@ -1314,25 +1345,36 @@ function ImportPanel({
                   </select>
                 </label>
               )}
-              <button
-                className="primary search-submit"
-                disabled={busy || (mode !== "season" && !keyword.trim())}
-                onClick={() => (mode === "batch" ? matchBatch() : search())}
-              >
-                {busy
-                  ? "正在获取…"
-                  : mode === "batch"
-                    ? "匹配动画名称"
-                    : mode === "season"
-                      ? "获取季度动画"
-                      : mode === "collection"
-                        ? "获取公开收藏"
-                        : "搜索动画"}
-              </button>
+              <div className="search-actions">
+                <button
+                  className="primary search-submit"
+                  disabled={busy || (mode !== "season" && !keyword.trim())}
+                  onClick={() => (mode === "batch" ? matchBatch() : search())}
+                >
+                  {busy
+                    ? mode === "batch"
+                      ? `正在匹配 ${progress.done} / ${progress.total}`
+                      : "正在获取…"
+                    : mode === "batch"
+                      ? "匹配动画名称"
+                      : mode === "season"
+                        ? "获取季度动画"
+                        : mode === "collection"
+                          ? "获取公开收藏"
+                          : "搜索动画"}
+                </button>
+                {mode === "batch" && busy && (
+                  <button onClick={cancelBatch}>取消匹配</button>
+                )}
+                {mode === "batch" && !busy && batch.some((r) => r.error) && (
+                  <button onClick={() => matchBatch(true)}>重试失败项</button>
+                )}
+              </div>
               {mode === "batch" ? (
                 batch.map((row, index) => (
                   <div className="batch-row" key={row.name}>
                     <strong>{row.name}</strong>
+                    {row.pending && <small>匹配中…</small>}
                     {row.error && (
                       <small className="error">
                         {row.error} 可重新匹配或手动添加。
@@ -1340,6 +1382,7 @@ function ImportPanel({
                     )}
                     <select
                       aria-label={row.name + "匹配候选"}
+                      disabled={row.pending}
                       value={row.chosen}
                       onChange={(e) =>
                         setBatch((old) =>
