@@ -17,5 +17,6 @@ const api: DesktopAPI = {
   importTask: () => ipcRenderer.invoke("import-task"),
   exportImages: (i) => ipcRenderer.invoke("export-images", i),
   openSubject: (id) => ipcRenderer.invoke("open-subject", id),
+  openManual: () => ipcRenderer.invoke("open-manual"),
 };
 contextBridge.exposeInMainWorld("desktop", api);

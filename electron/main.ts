@@ -24,7 +24,7 @@ import {
   maxCoverBytes,
   queryBangumi,
 } from "./service";
-import { installMenu } from "./menu";
+import { installMenu, manualUrl } from "./menu";
 import { minWindow, restoreWindow } from "./window-state";
 let win: BrowserWindow;
 if (process.env.ANIMATION_RANK_DATA_DIR)
@@ -183,6 +183,7 @@ app.whenReady().then(() => {
     if (!Number.isInteger(id) || id <= 0) throw new Error("无效条目");
     return shell.openExternal(`https://bgm.tv/subject/${id}`);
   });
+  ipcMain.handle("open-manual", () => shell.openExternal(manualUrl));
   const windowFile = path.join(app.getPath("userData"), "window.json");
   function createWindow() {
     let saved: unknown;

@@ -1,5 +1,13 @@
-import { app, BrowserWindow, Menu, MenuItemConstructorOptions } from "electron";
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  MenuItemConstructorOptions,
+  shell,
+} from "electron";
 import type { MenuCommand } from "../src/model";
+const repoUrl = "https://github.com/binaryyang/animation-rank";
+export const manualUrl = `${repoUrl}/blob/main/docs/user-guide.md`;
 export function installMenu() {
   const send = (command: MenuCommand) => () =>
     (
@@ -64,6 +72,19 @@ export function installMenu() {
       ],
     },
     { role: "windowMenu", label: "窗口" },
+    {
+      role: "help",
+      label: "帮助",
+      submenu: [
+        { label: "使用手册", click: () => shell.openExternal(manualUrl) },
+        item("键盘快捷键", "shortcuts", "CmdOrCtrl+/"),
+        { type: "separator" },
+        {
+          label: "反馈问题",
+          click: () => shell.openExternal(`${repoUrl}/issues`),
+        },
+      ],
+    },
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }

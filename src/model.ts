@@ -231,7 +231,8 @@ export type MenuCommand =
   | "view-board"
   | "view-quick"
   | "toggle-names"
-  | "toggle-sidebar";
+  | "toggle-sidebar"
+  | "shortcuts";
 export interface DesktopAPI {
   onMenu(listener: (command: MenuCommand) => void): () => void;
   load(): Promise<{ state: State; warning?: string }>;
@@ -244,4 +245,5 @@ export interface DesktopAPI {
   importTask(): Promise<Task | null>;
   exportImages(images: string[]): Promise<boolean>;
   openSubject(id: number): Promise<void>;
+  openManual(): Promise<void>;
 }

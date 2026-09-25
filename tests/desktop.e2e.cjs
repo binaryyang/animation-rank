@@ -24,6 +24,18 @@ const os = require("node:os");
     page = await application.firstWindow();
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
+    const stubShell = () =>
+      application.evaluate(({ shell }) => {
+        globalThis.opened = [];
+        shell.openExternal = async (url) => void globalThis.opened.push(url);
+      });
+    await stubShell();
+    const opened = () => application.evaluate(() => globalThis.opened);
+    const manual =
+      "https://github.com/binaryyang/animation-rank/blob/main/docs/user-guide.md";
+    await expect(page.locator(".first-steps li")).toHaveCount(3);
+    await page.getByRole("button", { name: /阅读使用手册/ }).click();
+    await expect.poll(opened).toEqual([manual]);
     await page.getByRole("button", { name: "＋ 创建第一份评价任务" }).click();
     await page.locator(".dialog textarea").fill("2026 夏季新番\n历史最爱");
     await page.getByRole("button", { name: "保存", exact: true }).click();
@@ -590,6 +602,23 @@ const os = require("node:os");
       page.getByRole("checkbox", { name: "显示名称", exact: true }),
     ).toBeChecked();
     await clickMenu("显示", "显示 / 隐藏卡片名称");
+    // Help: ? and the 帮助 menu open the shortcut sheet, which links the manual.
+    await stubShell();
+    await page.locator(".pending-header input").blur();
+    await page.keyboard.press("?");
+    const help = page.getByRole("dialog", { name: "键盘快捷键" });
+    await expect(help).toContainText("跳过这一部");
+    await page.keyboard.press("Escape");
+    await expect(help).toHaveCount(0);
+    await clickMenu("帮助", "键盘快捷键");
+    await expect(help).toBeVisible();
+    await help.getByRole("button", { name: /阅读完整使用手册/ }).click();
+    await expect.poll(opened).toEqual([manual]);
+    await page.screenshot({ path: path.join(dir, "shortcuts.png") });
+    await help.getByRole("button", { name: "知道了" }).click();
+    await expect(help).toHaveCount(0);
+    await clickMenu("帮助", "使用手册");
+    await expect.poll(opened).toEqual([manual, manual]);
     // Search is case-insensitive and highlights matches on the board.
     await page.locator(".pending-header input").fill("乙 ORIGINAL");
     await expect(page.locator(".anime-card.match")).toHaveCount(1);
@@ -671,6 +700,7 @@ const os = require("node:os");
           "already-added search results",
           "batch preselection and retry",
           "application menu",
+          "help menu, shortcut sheet and first-run guide",
           "board-wide search",
           "detail current tier",
           "window state persistence",

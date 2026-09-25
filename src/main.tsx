@@ -28,6 +28,7 @@ import { ExportPreview } from "./ExportPreview";
 import { Cover } from "./Cover";
 import { DetailDialog } from "./DetailDialog";
 import { QuickView } from "./QuickView";
+import { ShortcutsDialog } from "./ShortcutsDialog";
 import { cardId, focusCard, neighborCard } from "./keyboard";
 import "./style.css";
 import iconUrl from "../build/icon.png";
@@ -69,6 +70,7 @@ function App() {
     return () => window.clearTimeout(timer);
   }, [notice, hoverNotice]);
   const [preview, setPreview] = useState<Task | null>(null);
+  const [shortcuts, setShortcuts] = useState(false);
   const stateRef = useRef(state);
   const history = useRef<History>(emptyHistory);
   function update(fn: (s: State) => State) {
@@ -311,7 +313,14 @@ function App() {
       window.removeEventListener("resize", close);
     };
   }, [menu]);
-  const overlayOpen = !!(modal || panel || detailEntry || preview || menu);
+  const overlayOpen = !!(
+    modal ||
+    panel ||
+    detailEntry ||
+    preview ||
+    menu ||
+    shortcuts
+  );
   useEffect(() => {
     function key(e: KeyboardEvent) {
       if (
@@ -327,6 +336,8 @@ function App() {
       } else if ((e.metaKey || e.ctrlKey) && e.code === "KeyA") {
         e.preventDefault();
         onMenu.current("select-all");
+      } else if (e.key === "?") {
+        setShortcuts(true);
       } else if (e.key === "Escape") {
         if (selection.length) setSelected([]);
         else setQuick(false);
@@ -362,6 +373,8 @@ function App() {
         return travel(command);
       case "toggle-sidebar":
         return togglePreference("sidebarCollapsed");
+      case "shortcuts":
+        return setShortcuts(true);
     }
     if (!task) return;
     switch (command) {
@@ -642,6 +655,9 @@ function App() {
         <button className="import-task" onClick={importFile} disabled={!loaded}>
           ↥ 导入任务文件
         </button>
+        <button className="import-task" onClick={() => setShortcuts(true)}>
+          ? 快捷键与帮助
+        </button>
         <div className="local-info">
           <span className="status-dot" /> 本地工作空间
           <small>每一份喜好，都值得留下。</small>
@@ -713,6 +729,23 @@ function App() {
               onClick={() => openModal("new")}
             >
               ＋ 创建第一份评价任务
+            </button>
+            <ol className="first-steps">
+              <li>
+                <b>创建任务</b>
+                <span>给榜单起个名字，比如「2026 年追过的番」</span>
+              </li>
+              <li>
+                <b>添加动画</b>
+                <span>从 Bangumi 搜索，或一次粘贴多个名称批量导入</span>
+              </li>
+              <li>
+                <b>拖进梯度</b>
+                <span>把卡片拖到对应等级，或悬停后按 1–6</span>
+              </li>
+            </ol>
+            <button className="link" onClick={() => void api.openManual()}>
+              第一次使用？阅读使用手册 ↗
             </button>
             <div className="tier-preview">
               {tiers.map((t, i) => (
@@ -895,7 +928,7 @@ function App() {
                   ) : (
                     <p className="board-hint">
                       悬停或用方向键选中卡片：1–6 评级 · 0 移回待评价 · ⌫ 移除 ·
-                      ⌘/⇧ 点击多选
+                      ⌘/⇧ 点击多选 · ? 全部快捷键
                     </p>
                   )}
                 </div>
@@ -1091,6 +1124,12 @@ function App() {
             </div>
           </div>
         </div>
+      )}
+      {shortcuts && (
+        <ShortcutsDialog
+          close={() => setShortcuts(false)}
+          openManual={() => void api.openManual()}
+        />
       )}
       {detailEntry && task && (
         <DetailDialog
