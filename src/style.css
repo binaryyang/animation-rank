@@ -623,6 +623,22 @@ footer {
   font-size: 11px;
   border: 0;
 }
+.detail-links {
+  display: flex;
+  gap: 8px;
+}
+.detail-form > .cover {
+  width: 100px;
+  height: 140px;
+}
+.cover-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.cover-actions button {
+  font-size: 11px;
+}
 .detail .remove-entry {
   margin-top: 16px;
   font-size: 11px;

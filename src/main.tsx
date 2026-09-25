@@ -16,11 +16,14 @@ import {
   record,
   redo,
   removeEntries,
+  updateAnime,
   tiers,
   undo,
 } from "./model";
 import { colors } from "./export";
 import { ExportPreview } from "./ExportPreview";
+import { Cover } from "./Cover";
+import { DetailDialog } from "./DetailDialog";
 import "./style.css";
 import iconUrl from "../build/icon.png";
 declare global {
@@ -29,28 +32,6 @@ declare global {
   }
 }
 const api = window.desktop;
-function Cover({
-  anime,
-  className = "",
-}: {
-  anime: Anime;
-  className?: string;
-}) {
-  const [broken, setBroken] = useState(false);
-  return anime.cover.startsWith("data:image/") && !broken ? (
-    <img
-      className={"cover " + className}
-      src={anime.cover}
-      onError={() => setBroken(true)}
-      alt={anime.name}
-    />
-  ) : (
-    <div className={"cover placeholder " + className}>
-      <span>✦</span>
-      <b>{anime.name.slice(0, 12)}</b>
-    </div>
-  );
-}
 type Notice = { text: string; action?: "undo" | "redo"; duration: number };
 function App() {
   const [state, setState] = useState<State>(emptyState),
@@ -60,7 +41,7 @@ function App() {
     [modal, setModal] = useState<"new" | "rename" | "delete" | null>(null),
     [names, setNames] = useState(""),
     [panel, setPanel] = useState<string | null>(null),
-    [detail, setDetail] = useState<Anime | null>(null),
+    [detail, setDetail] = useState<string | null>(null),
     [quick, setQuick] = useState(false),
     [filter, setFilter] = useState(""),
     [exporting, setExporting] = useState(false);
@@ -194,6 +175,7 @@ function App() {
   const revision = useRef(0);
   const task = state.tasks.find((t) => t.id === state.activeId);
   const pending = task?.entries.filter((e) => e.tier === null) || [];
+  const detailEntry = task?.entries.find((e) => e.anime.id === detail);
   useEffect(() => {
     api
       .load()
@@ -255,7 +237,7 @@ function App() {
         ) ||
         modal ||
         panel ||
-        detail ||
+        detailEntry ||
         preview
       )
         return;
@@ -358,7 +340,7 @@ function App() {
           className="card-button"
           title={a.name}
           aria-label={a.name}
-          onClick={() => setDetail(a)}
+          onClick={() => setDetail(a.id)}
         >
           <Cover anime={a} />
           {(tier === null || state.preferences.showNames) && (
@@ -793,61 +775,25 @@ function App() {
           </div>
         </div>
       )}
-      {detail && (
-        <div className="overlay" onClick={() => setDetail(null)}>
-          <div className="dialog detail" onClick={(e) => e.stopPropagation()}>
-            <button className="close" onClick={() => setDetail(null)}>
-              ×
-            </button>
-            <Cover anime={detail} />
-            <h2>{detail.name}</h2>
-            <p>{detail.original}</p>
-            <small>首播日期：{detail.date || "暂无资料"}</small>
-            <p className="summary">{detail.summary || "暂无简介"}</p>
-            {detail.bangumiId && (
-              <button
-                onClick={() =>
-                  api
-                    .openSubject(detail.bangumiId!)
-                    .catch((e) => setNotice(String(e)))
-                }
-              >
-                在 Bangumi 查看 ↗
-              </button>
-            )}
-            <div className="detail-ranks">
-              {tiers.map((t, i) => (
-                <button
-                  key={t}
-                  style={{ background: colors[i] }}
-                  onClick={() => {
-                    rank(detail.id, i);
-                    setDetail(null);
-                  }}
-                >
-                  {t}
-                </button>
-              ))}
-              <button
-                onClick={() => {
-                  rank(detail.id, null);
-                  setDetail(null);
-                }}
-              >
-                移回待评价
-              </button>
-            </div>
-            <button
-              className="danger-text remove-entry"
-              onClick={() => {
-                remove([detail.id]);
-                setDetail(null);
-              }}
-            >
-              从榜单移除
-            </button>
-          </div>
-        </div>
+      {detailEntry && task && (
+        <DetailDialog
+          entry={detailEntry}
+          close={() => setDetail(null)}
+          notify={setNotice}
+          rank={(tier) => {
+            rank(detailEntry.anime.id, tier);
+            setDetail(null);
+          }}
+          remove={() => {
+            remove([detailEntry.anime.id]);
+            setDetail(null);
+          }}
+          save={(edit) =>
+            updateTask(`已更新「${edit.name.trim()}」`, task.id, (t) =>
+              updateAnime(t, detailEntry.anime.id, edit),
+            )
+          }
+        />
       )}
     </div>
   );

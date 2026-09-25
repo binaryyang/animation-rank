@@ -69,6 +69,30 @@ export function normalize(raw: any): Anime {
     cover: raw.images?.medium || raw.images?.common || "",
   };
 }
+export async function fetchSubject(
+  id: number,
+  request: typeof fetch = fetch,
+): Promise<Anime> {
+  if (!Number.isInteger(id) || id <= 0) throw new Error("无效条目");
+  let response: Response;
+  try {
+    response = await request(`https://api.bgm.tv/v0/subjects/${id}`, {
+      headers: {
+        "User-Agent": "AnimationRank/1.0 (Desktop; local personal ranking)",
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch {
+    throw new Error("连接超时或网络不可用，请重试。");
+  }
+  if (!response.ok)
+    throw new Error(
+      response.status === 404
+        ? "Bangumi 上找不到该条目。"
+        : `获取失败（${response.status}），请重试。`,
+    );
+  return normalize(await response.json());
+}
 export async function queryBangumi(
   q: Query,
   request: typeof fetch = fetch,

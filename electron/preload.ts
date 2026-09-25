@@ -5,6 +5,7 @@ const api: DesktopAPI = {
   save: (s) => ipcRenderer.invoke("save", s),
   query: (q) => ipcRenderer.invoke("query", q),
   cache: (a) => ipcRenderer.invoke("cache", a),
+  subject: (id) => ipcRenderer.invoke("subject", id),
   pickCover: () => ipcRenderer.invoke("pick-cover"),
   exportTask: (t) => ipcRenderer.invoke("export-task", t),
   importTask: () => ipcRenderer.invoke("import-task"),

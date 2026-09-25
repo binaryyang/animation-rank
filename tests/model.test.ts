@@ -11,6 +11,7 @@ import {
   undo,
   redo,
   removeEntries,
+  updateAnime,
   State,
 } from "../src/model";
 const anime = (id: string) => ({
@@ -71,6 +72,29 @@ describe("移除动画", () => {
       ["3", 0],
     ]);
     expect(t.entries).toHaveLength(3);
+  });
+});
+describe("编辑动画", () => {
+  it("只修改目标条目的信息，保留 ID 与等级", () => {
+    const t = moveEntry(
+      addAnime(createTask("t"), ["1", "2"].map(anime)),
+      "1",
+      2,
+    );
+    const next = updateAnime(t, "1", {
+      name: "  新名称 ",
+      original: "orig",
+      date: "2020-01-01",
+      summary: "s",
+      cover: "",
+    });
+    expect(next.entries.find((e) => e.anime.id === "1")).toMatchObject({
+      tier: 2,
+      anime: { id: "1", name: "新名称", original: "orig" },
+    });
+    expect(next.entries.find((e) => e.anime.id === "2")).toBe(
+      t.entries.find((e) => e.anime.id === "2"),
+    );
   });
 });
 describe("撤销与重做", () => {

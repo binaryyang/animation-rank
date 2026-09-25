@@ -3,7 +3,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { Anime, animeSchema, exportSchema, taskSchema } from "../src/model";
-import { Store, queryBangumi } from "./service";
+import { Store, fetchSubject, queryBangumi } from "./service";
 let win: BrowserWindow;
 if (process.env.ANIMATION_RANK_DATA_DIR)
   app.setPath("userData", process.env.ANIMATION_RANK_DATA_DIR);
@@ -23,7 +23,12 @@ app.whenReady().then(() => {
     return store.save(state);
   });
   ipcMain.handle("query", (_, q) => queryBangumi(q));
-  ipcMain.handle("cache", async (_, input) =>
+  ipcMain.handle("cache", (_, input) => cache(input));
+  ipcMain.handle("subject", async (_, id) => {
+    const [anime] = await cache([await fetchSubject(id)]);
+    return anime;
+  });
+  const cache = (input: unknown) =>
     Promise.all(
       animeSchema
         .array()
@@ -60,8 +65,7 @@ app.whenReady().then(() => {
             return { ...a, cover: "" };
           }
         }),
-    ),
-  );
+    );
   ipcMain.handle("pick-cover", async () => {
     const result = await dialog.showOpenDialog(win, {
       properties: ["openFile"],

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { Store, queryBangumi } from "../electron/service";
+import { Store, fetchSubject, queryBangumi } from "../electron/service";
 import { State, emptyState } from "../src/model";
 describe("持久化", () => {
   it("串行原子写入，重启加载，主文件损坏时恢复备份", async () => {
@@ -91,6 +91,25 @@ describe("Bangumi 获取", () => {
       "/users/example/collections?subject_type=2&type=3",
     );
     expect(page.items[0].name).toBe("动画");
+  });
+  it("按 ID 获取单个条目并校验参数", async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ id: 5, name: "原名", images: { common: "c" } }),
+        ),
+      );
+    const anime = await fetchSubject(5, request);
+    expect(request.mock.calls[0][0]).toBe("https://api.bgm.tv/v0/subjects/5");
+    expect(anime).toMatchObject({ id: "bgm:5", name: "原名", cover: "c" });
+    await expect(fetchSubject(0, request)).rejects.toThrow("无效");
+    await expect(
+      fetchSubject(
+        5,
+        vi.fn().mockResolvedValue(new Response("", { status: 404 })),
+      ),
+    ).rejects.toThrow("找不到");
   });
   it("空结果可正常返回", async () => {
     expect(

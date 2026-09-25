@@ -97,6 +97,26 @@ const os = require("node:os");
       .getByRole("button", { name: "撤销", exact: true })
       .click();
     await expect(page.locator(".anime-card")).toHaveCount(2);
+    // Editing anime info updates the card and is undoable.
+    await page.locator(".pending .card-button").first().click();
+    await page.getByRole("button", { name: "编辑信息", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "编辑动画信息" })
+      .locator("input")
+      .first()
+      .fill("编辑后的名称");
+    await page.getByRole("button", { name: "保存", exact: true }).click();
+    await expect(page.locator(".detail h2")).toHaveText("编辑后的名称");
+    await page.getByRole("button", { name: "关闭详情" }).click();
+    await expect(page.locator(".pending .card-button").first()).toHaveAttribute(
+      "title",
+      "编辑后的名称",
+    );
+    await page.keyboard.press("Meta+z");
+    await expect(page.locator(".pending .card-button").first()).toHaveAttribute(
+      "title",
+      "目标绑定测试",
+    );
     // Rename, duplicate and delete remain isolated to the selected task.
     await page.getByRole("button", { name: "重命名", exact: true }).click();
     await page.locator(".dialog textarea").fill("重命名验证");

@@ -84,6 +84,20 @@ export function moveEntry(
   entries.splice(index < 0 ? entries.length : index, 0, { ...entry, tier });
   return { ...task, entries };
 }
+export type AnimeEdit = Pick<
+  Anime,
+  "name" | "original" | "date" | "summary" | "cover"
+>;
+export function updateAnime(task: Task, id: string, edit: AnimeEdit): Task {
+  return {
+    ...task,
+    entries: task.entries.map((e) =>
+      e.anime.id === id
+        ? { ...e, anime: { ...e.anime, ...edit, name: edit.name.trim() } }
+        : e,
+    ),
+  };
+}
 export function removeEntries(task: Task, ids: string[]): Task {
   const set = new Set(ids);
   return { ...task, entries: task.entries.filter((e) => !set.has(e.anime.id)) };
@@ -174,6 +188,7 @@ export interface DesktopAPI {
   save(state: State): Promise<void>;
   query(q: Query): Promise<Page>;
   cache(anime: Anime[]): Promise<Anime[]>;
+  subject(id: number): Promise<Anime>;
   pickCover(): Promise<string | null>;
   exportTask(task: Task): Promise<boolean>;
   importTask(): Promise<Task | null>;
