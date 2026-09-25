@@ -436,6 +436,57 @@ const os = require("node:os");
       .first()
       .dispatchEvent("drop", { dataTransfer: transfer });
     await expect(page.locator(".anime-card")).toHaveCount(2);
+    // Quick ranking: skip, rate, then revisit the previous one.
+    const quickFixture = {
+      version: 1,
+      task: {
+        id: "quick",
+        name: "快捷评价验证",
+        createdAt: new Date().toISOString(),
+        entries: ["甲", "乙", "丙"].map((name) => ({
+          anime: {
+            id: name,
+            name,
+            original: name + " original",
+            date: "2020-04-01",
+            summary: name + " 的简介",
+            cover: "",
+          },
+          tier: null,
+        })),
+      },
+    };
+    await writeFile(path.join(dir, "quick.json"), JSON.stringify(quickFixture));
+    await application.evaluate(({ dialog }, dir) => {
+      dialog.showOpenDialog = async () => ({
+        canceled: false,
+        filePaths: [dir + "/quick.json"],
+      });
+    }, dir);
+    await page.getByRole("button", { name: "↥ 导入任务文件" }).click();
+    await page.getByRole("button", { name: "ϟ 快捷评价" }).click();
+    const quickName = page.locator(".quick-view h2").nth(1);
+    await expect(quickName).toHaveText("甲");
+    await expect(page.locator(".quick-summary")).toHaveText("甲 的简介");
+    await page.keyboard.press("s");
+    await expect(quickName).toHaveText("乙");
+    await page.keyboard.press("1");
+    await expect(quickName).toHaveText("丙");
+    await page.keyboard.press("ArrowLeft");
+    await expect(quickName).toHaveText("乙");
+    await expect(page.locator(".quick-view h2").first()).toContainText(
+      "当前为「夯」",
+    );
+    await page.screenshot({ path: path.join(dir, "quick.png") });
+    await page.keyboard.press("3");
+    await expect(quickName).toHaveText("丙");
+    await page.getByRole("button", { name: "▦ 梯度榜单" }).click();
+    await expect(
+      page.locator(".tier-row").nth(2).locator(".anime-card"),
+    ).toHaveCount(1);
+    await expect(
+      page.locator(".tier-row").nth(0).locator(".anime-card"),
+    ).toHaveCount(0);
     console.log(
       JSON.stringify({
         passed: true,

@@ -24,6 +24,7 @@ import { colors } from "./export";
 import { ExportPreview } from "./ExportPreview";
 import { Cover } from "./Cover";
 import { DetailDialog } from "./DetailDialog";
+import { QuickView } from "./QuickView";
 import "./style.css";
 import iconUrl from "../build/icon.png";
 declare global {
@@ -229,24 +230,19 @@ function App() {
       (t) => removeEntries(t, ids),
     );
   }
+  const overlayOpen = !!(modal || panel || detailEntry || preview);
   useEffect(() => {
     function key(e: KeyboardEvent) {
       if (
         (e.target as HTMLElement).closest(
           "input,textarea,select,[contenteditable=true]",
         ) ||
-        modal ||
-        panel ||
-        detailEntry ||
-        preview
+        overlayOpen
       )
         return;
       if ((e.metaKey || e.ctrlKey) && e.code === "KeyZ") {
         e.preventDefault();
         travel(e.shiftKey ? "redo" : "undo");
-      } else if (quick && pending[0] && /^[1-6]$/.test(e.key)) {
-        e.preventDefault();
-        rank(pending[0].anime.id, Number(e.key) - 1);
       } else if (e.key === "Escape") setQuick(false);
     }
     window.addEventListener("keydown", key);
@@ -588,44 +584,13 @@ function App() {
               </div>
             </section>
             {quick ? (
-              <section className="quick-view">
-                <span className="eyebrow">ONE ANIME AT A TIME</span>
-                {pending[0] ? (
-                  <>
-                    <h2>这部动画，在你心中是什么梯度？</h2>
-                    <Cover anime={pending[0].anime} />
-                    <h2>{pending[0].anime.name}</h2>
-                    <p>
-                      还剩 {pending.length} 部待评价 · 点击等级，或使用数字键
-                      1–6
-                    </p>
-                    <div className="quick-tiers">
-                      {tiers.map((t, i) => (
-                        <button
-                          key={t}
-                          style={{ background: colors[i] }}
-                          onClick={() => rank(pending[0].anime.id, i)}
-                        >
-                          {t}
-                          <kbd>{i + 1}</kbd>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <h2>
-                      {task.entries.length
-                        ? "全部评价完成 ✨"
-                        : "还没有待评价的动画"}
-                    </h2>
-                    <p>添加更多动画，继续记录你的喜好。</p>
-                    <button onClick={() => setPanel(task.id)}>
-                      ＋ 添加动画
-                    </button>
-                  </>
-                )}
-              </section>
+              <QuickView
+                key={task.id}
+                task={task}
+                disabled={overlayOpen}
+                rank={rank}
+                add={() => setPanel(task.id)}
+              />
             ) : (
               <div className="ranking-workspace">
                 <div className="board-column">
