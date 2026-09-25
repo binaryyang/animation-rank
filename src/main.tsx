@@ -379,11 +379,21 @@ function App() {
           );
         return;
       case "find":
+        pendingFind.current = true;
         setQuick(false);
-        requestAnimationFrame(() => searchRef.current?.focus());
+        setFindRequest((n) => n + 1);
         return;
     }
   };
+  const pendingFind = useRef(false);
+  const [, setFindRequest] = useState(0);
+  useEffect(() => {
+    if (pendingFind.current && searchRef.current) {
+      pendingFind.current = false;
+      searchRef.current.focus();
+      searchRef.current.select();
+    }
+  });
   useEffect(() => api.onMenu((command) => onMenu.current(command)), []);
   const pointerActive = useRef(true);
   useEffect(() => {
