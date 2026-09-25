@@ -25,6 +25,7 @@ import { ExportPreview } from "./ExportPreview";
 import { Cover } from "./Cover";
 import { DetailDialog } from "./DetailDialog";
 import { QuickView } from "./QuickView";
+import { cardId, focusCard, neighborCard } from "./keyboard";
 import "./style.css";
 import iconUrl from "../build/icon.png";
 declare global {
@@ -244,10 +245,50 @@ function App() {
         e.preventDefault();
         travel(e.shiftKey ? "redo" : "undo");
       } else if (e.key === "Escape") setQuick(false);
+      else if (!quick && task && !e.metaKey && !e.ctrlKey && !e.altKey)
+        boardKey(e);
     }
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   });
+  const hovered = useRef<string | null>(null);
+  const refocus = useRef<string | null>(null);
+  useEffect(() => {
+    if (refocus.current && focusCard(refocus.current)) refocus.current = null;
+  });
+  function boardKey(e: KeyboardEvent) {
+    const active = document.activeElement as HTMLElement | null;
+    if (e.key.startsWith("Arrow")) {
+      e.preventDefault();
+      hovered.current = null;
+      const next = neighborCard(
+        active?.matches(".card-button") ? active : null,
+        e.key,
+      );
+      next?.focus();
+      next?.scrollIntoView({ block: "nearest" });
+      return;
+    }
+    const id = hovered.current ?? cardId(active);
+    if (!id || !task?.entries.some((entry) => entry.anime.id === id)) return;
+    if (/^[0-6]$/.test(e.key)) {
+      e.preventDefault();
+      const tier = e.key === "0" ? null : Number(e.key) - 1;
+      if (task.entries.find((entry) => entry.anime.id === id)?.tier === tier)
+        return;
+      if (cardId(active) === id) refocus.current = id;
+      rank(id, tier);
+    } else if (e.key === "Delete" || e.key === "Backspace") {
+      e.preventDefault();
+      const next =
+        cardId(active) === id
+          ? (cardId(neighborCard(active, "ArrowRight")) ??
+            cardId(neighborCard(active, "ArrowLeft")))
+          : null;
+      if (next) refocus.current = next;
+      remove([id]);
+    }
+  }
   async function importFile() {
     try {
       const t = await api.importTask();
@@ -316,6 +357,11 @@ function App() {
       <div
         className="anime-card"
         key={a.id}
+        data-anime-id={a.id}
+        onMouseEnter={() => (hovered.current = a.id)}
+        onMouseLeave={() => {
+          if (hovered.current === a.id) hovered.current = null;
+        }}
         draggable
         onDragStart={(e) => {
           drag.current = a.id;
@@ -628,6 +674,9 @@ function App() {
                       ))}
                     </section>
                   </div>
+                  <p className="board-hint">
+                    悬停或用方向键选中卡片：1–6 评级 · 0 移回待评价 · ⌫ 移除
+                  </p>
                 </div>
                 <section
                   className="pending"

@@ -47,12 +47,24 @@ const os = require("node:os");
     await expect(
       page.locator(".tier-row").nth(0).locator(".anime-card"),
     ).toHaveCount(1);
-    // Real HTML drag/drop between tiers.
-    await page
+    // Real HTML drag/drop between tiers, moved in several steps like a real
+    // pointer; a single jump occasionally fails to start a native drag.
+    const from = await page
       .locator(".tier-row")
       .nth(0)
       .locator(".anime-card")
-      .dragTo(page.locator(".tier-row").nth(2).locator(".tier-content"));
+      .boundingBox();
+    const to = await page
+      .locator(".tier-row")
+      .nth(2)
+      .locator(".tier-content")
+      .boundingBox();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, {
+      steps: 8,
+    });
+    await page.mouse.up();
     await expect(
       page.locator(".tier-row").nth(2).locator(".anime-card"),
     ).toHaveCount(1);
@@ -487,6 +499,30 @@ const os = require("node:os");
     await expect(
       page.locator(".tier-row").nth(0).locator(".anime-card"),
     ).toHaveCount(0);
+    // Board keyboard: number keys rank the focused card and focus follows it.
+    await page.locator("[data-anime-id='甲'] .card-button").focus();
+    await page.keyboard.press("2");
+    await expect(
+      page.locator(".tier-row").nth(1).locator("[data-anime-id='甲']"),
+    ).toHaveCount(1);
+    await expect(
+      page.locator("[data-anime-id='甲'] .card-button"),
+    ).toBeFocused();
+    await page.keyboard.press("0");
+    await expect(page.locator(".pending [data-anime-id='甲']")).toHaveCount(1);
+    await page.keyboard.press("ArrowLeft");
+    await expect(
+      page.locator("[data-anime-id='丙'] .card-button"),
+    ).toBeFocused();
+    await page.keyboard.press("Delete");
+    await expect(page.locator(".anime-card")).toHaveCount(2);
+    await page.keyboard.press("Meta+z");
+    await expect(page.locator(".anime-card")).toHaveCount(3);
+    await page.locator("[data-anime-id='乙']").hover();
+    await page.keyboard.press("5");
+    await expect(
+      page.locator(".tier-row").nth(4).locator("[data-anime-id='乙']"),
+    ).toHaveCount(1);
     console.log(
       JSON.stringify({
         passed: true,
