@@ -1272,3 +1272,15 @@ main {
   align-items: center;
   gap: 12px;
 }
+.notice {
+  gap: 10px;
+}
+.notice > span {
+  flex: 1;
+}
+.notice .notice-action {
+  color: #2d6a54;
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
+}

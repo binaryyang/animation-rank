@@ -5,6 +5,12 @@ import {
   moveEntry,
   exportSchema,
   tiers,
+  emptyHistory,
+  emptyState,
+  record,
+  undo,
+  redo,
+  State,
 } from "../src/model";
 const anime = (id: string) => ({
   id,
@@ -52,5 +58,46 @@ describe("任务与评价", () => {
       exportSchema.parse(JSON.parse(JSON.stringify({ version: 1, task }))),
     ).toEqual({ version: 1, task });
     expect(() => exportSchema.parse({ version: 2, task })).toThrow();
+  });
+});
+describe("撤销与重做", () => {
+  it("恢复任务和所在榜单，保留偏好，新操作清空重做", () => {
+    const a = createTask("a"),
+      b = createTask("b");
+    const s0: State = { ...emptyState, tasks: [a], activeId: a.id };
+    const s1: State = { ...s0, tasks: [a, b], activeId: b.id };
+    let h = record(emptyHistory, s0, "新建");
+    const later = {
+      ...s1,
+      activeId: a.id,
+      preferences: { sidebarCollapsed: true, showNames: true },
+    };
+    const back = undo(h, later)!;
+    expect(back.label).toBe("新建");
+    expect(back.state.tasks).toEqual([a]);
+    expect(back.state.preferences.showNames).toBe(true);
+    const forward = redo(back.history, back.state)!;
+    expect(forward.state.tasks).toEqual([a, b]);
+    expect(forward.state.activeId).toBe(a.id);
+    h = record(back.history, back.state, "其他");
+    expect(redo(h, back.state)).toBeNull();
+    expect(undo(emptyHistory, s0)).toBeNull();
+  });
+  it("修改非当前榜单时，撤销和重做切换到被修改的榜单", () => {
+    const a = createTask("a"),
+      b = createTask("b");
+    const s0: State = { ...emptyState, tasks: [a, b], activeId: a.id };
+    const s1: State = { ...s0, tasks: [a, addAnime(b, [anime("1")])] };
+    const back = undo(record(emptyHistory, s0, "添加", b.id), s1)!;
+    expect(back.state.activeId).toBe(b.id);
+    expect(
+      redo(back.history, { ...back.state, activeId: a.id })!.state.activeId,
+    ).toBe(b.id);
+  });
+  it("历史最多保留 100 步", () => {
+    let h = emptyHistory;
+    for (let i = 0; i < 120; i++) h = record(h, emptyState, String(i));
+    expect(h.past).toHaveLength(100);
+    expect(h.past[0].label).toBe("20");
   });
 });

@@ -3,14 +3,20 @@ import { createRoot } from "react-dom/client";
 import {
   Anime,
   DesktopAPI,
+  History,
   Query,
   State,
   Task,
   addAnime,
   createTask,
+  emptyHistory,
   emptyState,
+  mapTask,
   moveEntry,
+  record,
+  redo,
   tiers,
+  undo,
 } from "./model";
 import { colors } from "./export";
 import { ExportPreview } from "./ExportPreview";
@@ -44,11 +50,12 @@ function Cover({
     </div>
   );
 }
+type Notice = { text: string; action?: "undo" | "redo" };
 function App() {
   const [state, setState] = useState<State>(emptyState),
     [loaded, setLoaded] = useState(false),
     [saveStatus, setSaveStatus] = useState("正在载入"),
-    [notice, setNotice] = useState(""),
+    [notice, setNoticeState] = useState<Notice | null>(null),
     [modal, setModal] = useState<"new" | "rename" | "delete" | null>(null),
     [names, setNames] = useState(""),
     [panel, setPanel] = useState<string | null>(null),
@@ -56,13 +63,44 @@ function App() {
     [quick, setQuick] = useState(false),
     [filter, setFilter] = useState(""),
     [exporting, setExporting] = useState(false);
+  const setNotice = (text: string, action?: Notice["action"]) =>
+    setNoticeState(text ? { text, action } : null);
   useEffect(() => {
-    if (!notice || /失败|异常|无法|Error/.test(notice)) return;
-    const timer = window.setTimeout(() => setNotice(""), 4000);
+    if (!notice || /失败|异常|无法|Error/.test(notice.text)) return;
+    const timer = window.setTimeout(
+      () => setNoticeState(null),
+      notice.action ? 8000 : 4000,
+    );
     return () => window.clearTimeout(timer);
   }, [notice]);
   const [preview, setPreview] = useState<Task | null>(null);
-  const undo = useRef<{ taskId: string; entries: Task["entries"] }[]>([]);
+  const stateRef = useRef(state);
+  const history = useRef<History>(emptyHistory);
+  function update(fn: (s: State) => State) {
+    stateRef.current = fn(stateRef.current);
+    setState(stateRef.current);
+  }
+  function apply(label: string, fn: (s: State) => State, focus?: string) {
+    const previous = stateRef.current,
+      next = fn(previous);
+    if (next === previous) return;
+    history.current = record(history.current, previous, label, focus);
+    update(() => next);
+    setNotice(label, "undo");
+  }
+  function travel(direction: "undo" | "redo") {
+    const result = (direction === "undo" ? undo : redo)(
+      history.current,
+      stateRef.current,
+    );
+    if (!result) return;
+    history.current = result.history;
+    update(() => result.state);
+    setNotice(
+      `${direction === "undo" ? "已撤销" : "已重做"}：${result.label}`,
+      direction === "undo" ? "redo" : "undo",
+    );
+  }
   const drag = useRef<string | null>(null);
   const dragTask = useRef<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -135,14 +173,8 @@ function App() {
     };
   }, [dragging]);
   function drop(tier: number | null, before?: string) {
-    if (drag.current && dragTask.current === task?.id) {
-      const name = task?.entries.find((e) => e.anime.id === drag.current)?.anime
-        .name;
+    if (drag.current && dragTask.current === task?.id)
       rank(drag.current, tier, before);
-      setNotice(
-        `已将「${name}」移至${tier === null ? "待评价" : tiers[tier]}，可撤销。`,
-      );
-    }
     stopDrag();
   }
   const revision = useRef(0);
@@ -152,7 +184,7 @@ function App() {
     api
       .load()
       .then((r) => {
-        setState(r.state);
+        update(() => r.state);
         setLoaded(true);
         setSaveStatus("已保存到本机");
         if (r.warning) setNotice(r.warning);
@@ -178,33 +210,17 @@ function App() {
         }
       });
   }, [state, loaded]);
-  function updateTask(id: string, fn: (t: Task) => Task) {
-    setState((s) => ({
-      ...s,
-      tasks: s.tasks.map((t) => (t.id === id ? fn(t) : t)),
-    }));
+  function updateTask(label: string, id: string, fn: (t: Task) => Task) {
+    apply(label, (s) => mapTask(s, id, fn), id);
   }
   function rank(id: string, tier: number | null, before?: string) {
     if (!task || id === before) return;
-    undo.current.push({ taskId: task.id, entries: task.entries });
-    updateTask(task.id, (t) => moveEntry(t, id, tier, before));
-  }
-  function revert() {
-    const index = undo.current
-      .map((item) => item.taskId)
-      .lastIndexOf(task?.id || "");
-    if (index < 0) return;
-    const [item] = undo.current.splice(index, 1);
-    updateTask(item.taskId, (t) => ({
-      ...t,
-      entries: [
-        ...item.entries,
-        ...t.entries.filter(
-          (e) =>
-            !item.entries.some((previous) => previous.anime.id === e.anime.id),
-        ),
-      ],
-    }));
+    const name = task.entries.find((e) => e.anime.id === id)?.anime.name;
+    updateTask(
+      `已将「${name}」移至${tier === null ? "待评价" : tiers[tier]}`,
+      task.id,
+      (t) => moveEntry(t, id, tier, before),
+    );
   }
   useEffect(() => {
     function key(e: KeyboardEvent) {
@@ -218,9 +234,9 @@ function App() {
         preview
       )
         return;
-      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
+      if ((e.metaKey || e.ctrlKey) && e.code === "KeyZ") {
         e.preventDefault();
-        revert();
+        travel(e.shiftKey ? "redo" : "undo");
       } else if (quick && pending[0] && /^[1-6]$/.test(e.key)) {
         e.preventDefault();
         rank(pending[0].anime.id, Number(e.key) - 1);
@@ -233,7 +249,11 @@ function App() {
     try {
       const t = await api.importTask();
       if (t)
-        setState((s) => ({ ...s, tasks: [...s.tasks, t], activeId: t.id }));
+        apply(`已导入「${t.name}」`, (s) => ({
+          ...s,
+          tasks: [...s.tasks, t],
+          activeId: t.id,
+        }));
     } catch (e) {
       setNotice("任务导入失败：" + String(e));
     }
@@ -262,20 +282,21 @@ function App() {
         .filter(Boolean)
         .map(createTask);
       if (!tasks.length) return;
-      setState((s) => ({
+      apply(`已新建 ${tasks.length} 份榜单`, (s) => ({
         ...s,
         tasks: [...s.tasks, ...tasks],
         activeId: tasks[0].id,
       }));
     } else if (modal === "rename" && task && names.trim())
-      updateTask(task.id, (t) => ({ ...t, name: names.trim() }));
-    else if (modal === "delete" && task) {
-      setState((s) => {
+      updateTask(`已重命名为「${names.trim()}」`, task.id, (t) => ({
+        ...t,
+        name: names.trim(),
+      }));
+    else if (modal === "delete" && task)
+      apply(`已删除「${task.name}」`, (s) => {
         const tasks = s.tasks.filter((t) => t.id !== task.id);
         return { ...s, tasks, activeId: tasks[0]?.id || null };
       });
-      undo.current = undo.current.filter((u) => u.taskId !== task.id);
-    }
     setModal(null);
   }
   function openModal(type: "new" | "rename" | "delete") {
@@ -351,7 +372,7 @@ function App() {
                 key={t.id}
                 className={"task-link " + (task?.id === t.id ? "active" : "")}
                 onClick={() => {
-                  setState((s) => ({ ...s, activeId: t.id }));
+                  update((s) => ({ ...s, activeId: t.id }));
                   setQuick(false);
                   setFilter("");
                 }}
@@ -392,7 +413,7 @@ function App() {
             aria-expanded={!state.preferences.sidebarCollapsed}
             disabled={!loaded}
             onClick={() =>
-              setState((s) => ({
+              update((s) => ({
                 ...s,
                 preferences: {
                   ...s.preferences,
@@ -409,7 +430,7 @@ function App() {
           </span>
           <button
             className="save-status"
-            onClick={() => setState((s) => ({ ...s }))}
+            onClick={() => update((s) => ({ ...s }))}
             disabled={!loaded}
           >
             ◉ {saveStatus}
@@ -417,8 +438,18 @@ function App() {
         </header>
         {notice && (
           <div className="notice" role="status">
-            {notice}
-            <button onClick={() => setNotice("")}>×</button>
+            <span>{notice.text}</span>
+            {notice.action && (
+              <button
+                className="notice-action"
+                onClick={() => travel(notice.action!)}
+              >
+                {notice.action === "undo" ? "撤销" : "重做"}
+              </button>
+            )}
+            <button aria-label="关闭提示" onClick={() => setNotice("")}>
+              ×
+            </button>
           </div>
         )}
         {!task ? (
@@ -463,7 +494,7 @@ function App() {
                       createdAt: new Date().toISOString(),
                       entries: structuredClone(task.entries),
                     };
-                    setState((s) => ({
+                    apply(`已复制为「${copy.name}」`, (s) => ({
                       ...s,
                       tasks: [...s.tasks, copy],
                       activeId: copy.id,
@@ -502,7 +533,7 @@ function App() {
                       type="checkbox"
                       checked={state.preferences.showNames}
                       onChange={(e) =>
-                        setState((s) => ({
+                        update((s) => ({
                           ...s,
                           preferences: {
                             ...s.preferences,
@@ -515,12 +546,18 @@ function App() {
                   </label>
                 )}
                 <button
-                  onClick={revert}
-                  disabled={
-                    !undo.current.some((item) => item.taskId === task.id)
-                  }
+                  title="撤销 ⌘Z"
+                  onClick={() => travel("undo")}
+                  disabled={!history.current.past.length}
                 >
                   ↶ 撤销
+                </button>
+                <button
+                  title="重做 ⇧⌘Z"
+                  onClick={() => travel("redo")}
+                  disabled={!history.current.future.length}
+                >
+                  ↷ 重做
                 </button>
                 <button disabled={exporting} onClick={() => exportFile(false)}>
                   任务 JSON
@@ -668,9 +705,9 @@ function App() {
           target={state.tasks.find((t) => t.id === panel)}
           close={() => setPanel(null)}
           notify={setNotice}
-          add={(items) => {
-            updateTask(panel, (t) => addAnime(t, items));
-          }}
+          add={(items, message) =>
+            updateTask(message, panel, (t) => addAnime(t, items))
+          }
         />
       )}
       {modal && (
@@ -777,7 +814,7 @@ function ImportPanel({
 }: {
   target: Task | undefined;
   close: () => void;
-  add: (a: Anime[]) => void;
+  add: (a: Anime[], message: string) => void;
   notify: (s: string) => void;
 }) {
   const [mode, setMode] = useState<
@@ -908,10 +945,9 @@ function ImportPanel({
     const fresh = anime.filter(
       (a) => !target.entries.some((e) => e.anime.id === a.id),
     );
-    add(fresh);
-    notify(
-      `已向「${target.name}」添加 ${fresh.length} 部动画${anime.length !== fresh.length ? `，跳过 ${anime.length - fresh.length} 个重复条目` : ""}`,
-    );
+    const message = `已向「${target.name}」添加 ${fresh.length} 部动画${anime.length !== fresh.length ? `，跳过 ${anime.length - fresh.length} 个重复条目` : ""}`;
+    if (fresh.length) add(fresh, message);
+    else notify(message);
     close();
   }
   const newManual = (name: string): Anime => ({

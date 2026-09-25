@@ -61,6 +61,16 @@ export function createTask(name: string): Task {
     createdAt: new Date().toISOString(),
   };
 }
+export function mapTask(
+  state: State,
+  id: string,
+  fn: (t: Task) => Task,
+): State {
+  return {
+    ...state,
+    tasks: state.tasks.map((t) => (t.id === id ? fn(t) : t)),
+  };
+}
 export function moveEntry(
   task: Task,
   id: string,
@@ -88,6 +98,62 @@ export function addAnime(task: Task, anime: Anime[]): Task {
         })
         .map((a) => ({ anime: a, tier: null })),
     ],
+  };
+}
+export type Snapshot = {
+  tasks: Task[];
+  activeId: string | null;
+  label: string;
+  focus?: string;
+};
+export type History = { past: Snapshot[]; future: Snapshot[] };
+export const emptyHistory: History = { past: [], future: [] };
+const historyLimit = 100;
+const snapshot = (
+  state: State,
+  { label, focus }: Pick<Snapshot, "label" | "focus">,
+): Snapshot => ({ tasks: state.tasks, activeId: state.activeId, label, focus });
+const restore = (state: State, s: Snapshot): State => ({
+  ...state,
+  tasks: s.tasks,
+  activeId:
+    s.focus && s.tasks.some((t) => t.id === s.focus) ? s.focus : s.activeId,
+});
+export function record(
+  history: History,
+  state: State,
+  label: string,
+  focus?: string,
+): History {
+  return {
+    past: [...history.past, snapshot(state, { label, focus })].slice(
+      -historyLimit,
+    ),
+    future: [],
+  };
+}
+export function undo(history: History, state: State) {
+  const last = history.past.at(-1);
+  if (!last) return null;
+  return {
+    label: last.label,
+    state: restore(state, last),
+    history: {
+      past: history.past.slice(0, -1),
+      future: [...history.future, snapshot(state, last)],
+    },
+  };
+}
+export function redo(history: History, state: State) {
+  const next = history.future.at(-1);
+  if (!next) return null;
+  return {
+    label: next.label,
+    state: restore(state, next),
+    history: {
+      past: [...history.past, snapshot(state, next)],
+      future: history.future.slice(0, -1),
+    },
   };
 }
 export type Query = {

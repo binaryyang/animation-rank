@@ -75,8 +75,17 @@ const os = require("node:os");
     await expect(page.locator(".anime-card")).toHaveCount(0);
     await page.locator(".task-link").nth(0).click();
     await expect(page.locator(".anime-card")).toHaveCount(2);
-    // Undo a previous rank after importing; the newly added entry must survive.
+    // Undo reverts the latest action, even adding; redo reapplies it.
     await page.getByRole("button", { name: "↶ 撤销" }).click();
+    await expect(page.locator(".anime-card")).toHaveCount(1);
+    await expect(page.getByRole("status")).toContainText("已撤销");
+    await page.keyboard.press("Meta+Shift+z");
+    await expect(page.locator(".anime-card")).toHaveCount(2);
+    await page.keyboard.press("Meta+z");
+    await page
+      .getByRole("status")
+      .getByRole("button", { name: "重做", exact: true })
+      .click();
     await expect(page.locator(".anime-card")).toHaveCount(2);
     // Rename, duplicate and delete remain isolated to the selected task.
     await page.getByRole("button", { name: "重命名", exact: true }).click();
