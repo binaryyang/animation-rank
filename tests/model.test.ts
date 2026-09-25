@@ -3,6 +3,7 @@ import {
   addAnime,
   createTask,
   moveEntry,
+  moveEntries,
   exportSchema,
   tiers,
   emptyHistory,
@@ -60,6 +61,21 @@ describe("任务与评价", () => {
       exportSchema.parse(JSON.parse(JSON.stringify({ version: 1, task }))),
     ).toEqual({ version: 1, task });
     expect(() => exportSchema.parse({ version: 2, task })).toThrow();
+  });
+});
+describe("批量移动", () => {
+  it("保持相对顺序插入到目标之前，目标在选中项内时不变", () => {
+    let t = addAnime(createTask("t"), ["1", "2", "3", "4"].map(anime));
+    t = moveEntries(t, ["3", "1"], 0);
+    expect(
+      t.entries.filter((e) => e.tier === 0).map((e) => e.anime.id),
+    ).toEqual(["1", "3"]);
+    t = moveEntries(t, ["2", "4"], 0, "3");
+    expect(
+      t.entries.filter((e) => e.tier === 0).map((e) => e.anime.id),
+    ).toEqual(["1", "2", "4", "3"]);
+    expect(moveEntries(t, ["1", "2"], 1, "2")).toBe(t);
+    expect(moveEntries(t, ["missing"], 1)).toBe(t);
   });
 });
 describe("移除动画", () => {

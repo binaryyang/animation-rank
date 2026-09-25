@@ -1083,6 +1083,81 @@ main > footer,
   font-size: 10px;
   color: #a2aab1;
 }
+.anime-card.selected .cover {
+  outline: 3px solid #346757;
+  outline-offset: 2px;
+}
+.selection-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+  font-size: 11px;
+}
+.selection-bar strong {
+  margin-right: 4px;
+  color: #346757;
+}
+.selection-bar button {
+  font-size: 11px;
+  padding: 4px 7px;
+}
+.has-selection .notice {
+  bottom: 56px;
+}
+.selection-bar button[style] {
+  border: 0;
+}
+.context-menu {
+  position: fixed;
+  z-index: 30;
+  width: 180px;
+  background: #fff;
+  border: 1px solid #e1e5e9;
+  border-radius: 9px;
+  box-shadow: 0 10px 30px #1c273b26;
+  padding: 5px;
+  display: flex;
+  flex-direction: column;
+}
+.context-menu small {
+  padding: 5px 9px;
+  color: #8d98a1;
+  font-size: 10px;
+}
+.context-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 6px 9px;
+  font-size: 12px;
+  text-align: left;
+  border-radius: 5px;
+}
+.context-menu button:hover {
+  background: #eef3f0;
+}
+.context-menu i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.context-menu kbd {
+  margin-left: auto;
+  font: 10px inherit;
+  color: #a2aab1;
+}
+.context-menu hr {
+  border: 0;
+  border-top: 1px solid #eceff2;
+  margin: 4px 0;
+  width: 100%;
+}
 .ranking-workspace .pending {
   margin: 0;
   width: 280px;

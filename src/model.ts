@@ -74,18 +74,32 @@ export function mapTask(
     tasks: state.tasks.map((t) => (t.id === id ? fn(t) : t)),
   };
 }
+export function moveEntries(
+  task: Task,
+  ids: string[],
+  tier: number | null,
+  before?: string,
+): Task {
+  const set = new Set(ids);
+  if (before && set.has(before)) return task;
+  const moving = task.entries.filter((e) => set.has(e.anime.id));
+  if (!moving.length) return task;
+  const entries = task.entries.filter((e) => !set.has(e.anime.id));
+  const index = before ? entries.findIndex((e) => e.anime.id === before) : -1;
+  entries.splice(
+    index < 0 ? entries.length : index,
+    0,
+    ...moving.map((e) => ({ ...e, tier })),
+  );
+  return { ...task, entries };
+}
 export function moveEntry(
   task: Task,
   id: string,
   tier: number | null,
   before?: string,
 ): Task {
-  const entry = task.entries.find((e) => e.anime.id === id);
-  if (!entry) return task;
-  const entries = task.entries.filter((e) => e.anime.id !== id);
-  const index = before ? entries.findIndex((e) => e.anime.id === before) : -1;
-  entries.splice(index < 0 ? entries.length : index, 0, { ...entry, tier });
-  return { ...task, entries };
+  return moveEntries(task, [id], tier, before);
 }
 export type AnimeEdit = Pick<
   Anime,

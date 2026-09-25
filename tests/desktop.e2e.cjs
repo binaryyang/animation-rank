@@ -18,9 +18,10 @@ const os = require("node:os");
         : { args: [path.resolve(".")] }),
       env: { ...process.env, ANIMATION_RANK_DATA_DIR: dir },
     });
+  let page;
   try {
     application = await launch();
-    let page = await application.firstWindow();
+    page = await application.firstWindow();
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.getByRole("button", { name: "＋ 创建第一份评价任务" }).click();
@@ -523,6 +524,34 @@ const os = require("node:os");
     await expect(
       page.locator(".tier-row").nth(4).locator("[data-anime-id='乙']"),
     ).toHaveCount(1);
+    // Multi-select with ⌘-click, rank the selection by key and context menu.
+    await page.mouse.move(0, 0);
+    await page
+      .locator("[data-anime-id='甲'] .card-button")
+      .click({ modifiers: ["Meta"] });
+    await page
+      .locator("[data-anime-id='丙'] .card-button")
+      .click({ modifiers: ["Meta"] });
+    await expect(page.locator(".selection-bar")).toContainText("已选 2 部");
+    await page.mouse.move(0, 0);
+    await page.keyboard.press("1");
+    await expect(
+      page.locator(".tier-row").nth(0).locator(".anime-card"),
+    ).toHaveCount(2);
+    await page.locator("[data-anime-id='甲']").click({ button: "right" });
+    await expect(page.getByRole("menu")).toContainText("2 部动画");
+    await page.screenshot({ path: path.join(dir, "menu.png") });
+    await page.getByRole("menuitem", { name: "NPC" }).click();
+    await expect(
+      page.locator(".tier-row").nth(3).locator(".anime-card.selected"),
+    ).toHaveCount(2);
+    await page.keyboard.press("Escape");
+    await expect(page.locator(".anime-card.selected")).toHaveCount(0);
+    await page.locator("[data-anime-id='乙']").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "从榜单移除" }).click();
+    await expect(page.locator(".anime-card")).toHaveCount(2);
+    await page.keyboard.press("Meta+z");
+    await expect(page.locator(".anime-card")).toHaveCount(3);
     console.log(
       JSON.stringify({
         passed: true,
@@ -548,6 +577,12 @@ const os = require("node:os");
         ],
       }),
     );
+  } catch (error) {
+    await page
+      ?.screenshot({ path: path.join(dir, "failure.png") })
+      .catch(() => {});
+    console.error("Failure screenshot:", path.join(dir, "failure.png"));
+    throw error;
   } finally {
     if (application) await application.close();
   }

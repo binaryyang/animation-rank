@@ -12,7 +12,7 @@ import {
   emptyHistory,
   emptyState,
   mapTask,
-  moveEntry,
+  moveEntries,
   record,
   redo,
   removeEntries,
@@ -98,7 +98,7 @@ function App() {
       direction === "undo" ? "redo" : "undo",
     );
   }
-  const drag = useRef<string | null>(null);
+  const drag = useRef<string[] | null>(null);
   const dragTask = useRef<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const scrolling = useRef<{ element: HTMLElement; speed: number } | null>(
@@ -171,7 +171,7 @@ function App() {
   }, [dragging]);
   function drop(tier: number | null, before?: string) {
     if (drag.current && dragTask.current === task?.id)
-      rank(drag.current, tier, before);
+      rankMany(drag.current, tier, before);
     stopDrag();
   }
   const revision = useRef(0);
@@ -212,16 +212,23 @@ function App() {
     apply(label, (s) => mapTask(s, id, fn), id);
   }
   function rank(id: string, tier: number | null, before?: string) {
-    if (!task || id === before) return;
-    const name = task.entries.find((e) => e.anime.id === id)?.anime.name;
+    rankMany([id], tier, before);
+  }
+  function rankMany(ids: string[], tier: number | null, before?: string) {
+    if (!task || !ids.length || (before && ids.includes(before))) return;
+    const name = task.entries.find((e) => e.anime.id === ids[0])?.anime.name;
+    const target = tier === null ? "待评价" : tiers[tier];
     updateTask(
-      `已将「${name}」移至${tier === null ? "待评价" : tiers[tier]}`,
+      ids.length === 1
+        ? `已将「${name}」移至${target}`
+        : `已将 ${ids.length} 部动画移至${target}`,
       task.id,
-      (t) => moveEntry(t, id, tier, before),
+      (t) => moveEntries(t, ids, tier, before),
     );
   }
   function remove(ids: string[]) {
     if (!task || !ids.length) return;
+    setSelected((s) => s.filter((id) => !ids.includes(id)));
     const name = task.entries.find((e) => e.anime.id === ids[0])?.anime.name;
     updateTask(
       ids.length === 1
@@ -231,7 +238,71 @@ function App() {
       (t) => removeEntries(t, ids),
     );
   }
-  const overlayOpen = !!(modal || panel || detailEntry || preview);
+  const [selected, setSelected] = useState<string[]>([]);
+  const selection = selected.filter((id) =>
+    task?.entries.some((e) => e.anime.id === id),
+  );
+  const selectedSet = new Set(selection);
+  const anchor = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    setSelected([]);
+    setMenu(null);
+  }, [state.activeId, quick]);
+  function select(id: string, mode: "toggle" | "range") {
+    if (mode === "toggle" || !anchor.current) {
+      anchor.current = id;
+      setSelected(
+        selectedSet.has(id)
+          ? selection.filter((x) => x !== id)
+          : [...selection, id],
+      );
+      return;
+    }
+    const order = [
+      ...document.querySelectorAll<HTMLElement>("[data-anime-id]"),
+    ].map((el) => el.dataset.animeId!);
+    const [a, b] = [order.indexOf(anchor.current), order.indexOf(id)].sort(
+      (x, y) => x - y,
+    );
+    if (a < 0) return select(id, "toggle");
+    setSelected([...new Set([...selection, ...order.slice(a, b + 1)])]);
+  }
+  const [menu, setMenu] = useState<{
+    x: number;
+    y: number;
+    ids: string[];
+  } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!menu || !el) return;
+    const { width, height } = el.getBoundingClientRect();
+    el.style.left = `${Math.max(8, Math.min(menu.x, innerWidth - width - 8))}px`;
+    el.style.top = `${Math.max(8, Math.min(menu.y, innerHeight - height - 8))}px`;
+  }, [menu]);
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") close();
+    };
+    const outside = (e: MouseEvent) => {
+      if (!(e.target as Element).closest(".context-menu")) close();
+    };
+    document.addEventListener("mousedown", outside);
+    document.addEventListener("wheel", close, { passive: true });
+    window.addEventListener("keydown", escape);
+    window.addEventListener("blur", close);
+    window.addEventListener("resize", close);
+    return () => {
+      document.removeEventListener("mousedown", outside);
+      document.removeEventListener("wheel", close);
+      window.removeEventListener("keydown", escape);
+      window.removeEventListener("blur", close);
+      window.removeEventListener("resize", close);
+    };
+  }, [menu]);
+  const overlayOpen = !!(modal || panel || detailEntry || preview || menu);
   useEffect(() => {
     function key(e: KeyboardEvent) {
       if (
@@ -244,14 +315,28 @@ function App() {
       if ((e.metaKey || e.ctrlKey) && e.code === "KeyZ") {
         e.preventDefault();
         travel(e.shiftKey ? "redo" : "undo");
-      } else if (e.key === "Escape") setQuick(false);
-      else if (!quick && task && !e.metaKey && !e.ctrlKey && !e.altKey)
+      } else if ((e.metaKey || e.ctrlKey) && e.code === "KeyA" && !quick) {
+        e.preventDefault();
+        setSelected(
+          [...document.querySelectorAll<HTMLElement>("[data-anime-id]")].map(
+            (el) => el.dataset.animeId!,
+          ),
+        );
+      } else if (e.key === "Escape") {
+        if (selection.length) setSelected([]);
+        else setQuick(false);
+      } else if (!quick && task && !e.metaKey && !e.ctrlKey && !e.altKey)
         boardKey(e);
     }
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   });
-  const hovered = useRef<string | null>(null);
+  const pointerActive = useRef(true);
+  useEffect(() => {
+    const move = () => (pointerActive.current = true);
+    document.addEventListener("mousemove", move);
+    return () => document.removeEventListener("mousemove", move);
+  }, []);
   const refocus = useRef<string | null>(null);
   useEffect(() => {
     if (refocus.current && focusCard(refocus.current)) refocus.current = null;
@@ -260,7 +345,7 @@ function App() {
     const active = document.activeElement as HTMLElement | null;
     if (e.key.startsWith("Arrow")) {
       e.preventDefault();
-      hovered.current = null;
+      pointerActive.current = false;
       const next = neighborCard(
         active?.matches(".card-button") ? active : null,
         e.key,
@@ -269,7 +354,19 @@ function App() {
       next?.scrollIntoView({ block: "nearest" });
       return;
     }
-    const id = hovered.current ?? cardId(active);
+    const isAction =
+      /^[0-6]$/.test(e.key) || e.key === "Delete" || e.key === "Backspace";
+    if (isAction && selection.length) {
+      e.preventDefault();
+      if (/^[0-6]$/.test(e.key))
+        rankMany(selection, e.key === "0" ? null : Number(e.key) - 1);
+      else remove(selection);
+      return;
+    }
+    const hovered = pointerActive.current
+      ? cardId(document.querySelector(".anime-card:hover"))
+      : null;
+    const id = hovered ?? cardId(active);
     if (!id || !task?.entries.some((entry) => entry.anime.id === id)) return;
     if (/^[0-6]$/.test(e.key)) {
       e.preventDefault();
@@ -355,16 +452,20 @@ function App() {
   function card(a: Anime, tier: number | null) {
     return (
       <div
-        className="anime-card"
+        className={"anime-card" + (selectedSet.has(a.id) ? " selected" : "")}
         key={a.id}
         data-anime-id={a.id}
-        onMouseEnter={() => (hovered.current = a.id)}
-        onMouseLeave={() => {
-          if (hovered.current === a.id) hovered.current = null;
+        onContextMenu={(e) => {
+          e.preventDefault();
+          setMenu({
+            x: e.clientX,
+            y: e.clientY,
+            ids: selectedSet.has(a.id) ? selection : [a.id],
+          });
         }}
         draggable
         onDragStart={(e) => {
-          drag.current = a.id;
+          drag.current = selectedSet.has(a.id) ? selection : [a.id];
           dragTask.current = task?.id || null;
           setDragging(true);
           e.dataTransfer.effectAllowed = "move";
@@ -382,7 +483,15 @@ function App() {
           className="card-button"
           title={a.name}
           aria-label={a.name}
-          onClick={() => setDetail(a.id)}
+          aria-pressed={selectedSet.has(a.id)}
+          onClick={(e) => {
+            if (e.metaKey || e.ctrlKey) select(a.id, "toggle");
+            else if (e.shiftKey) select(a.id, "range");
+            else {
+              setSelected([]);
+              setDetail(a.id);
+            }
+          }}
         >
           <Cover anime={a} />
           {(tier === null || state.preferences.showNames) && (
@@ -395,7 +504,9 @@ function App() {
   return (
     <div
       className={
-        "app" + (state.preferences.sidebarCollapsed ? " sidebar-collapsed" : "")
+        "app" +
+        (state.preferences.sidebarCollapsed ? " sidebar-collapsed" : "") +
+        (selection.length && !quick ? " has-selection" : "")
       }
     >
       <aside className="sidebar">
@@ -674,9 +785,40 @@ function App() {
                       ))}
                     </section>
                   </div>
-                  <p className="board-hint">
-                    悬停或用方向键选中卡片：1–6 评级 · 0 移回待评价 · ⌫ 移除
-                  </p>
+                  {selection.length ? (
+                    <div className="selection-bar" role="toolbar">
+                      <strong>已选 {selection.length} 部</strong>
+                      {tiers.map((t, i) => (
+                        <button
+                          key={t}
+                          style={{ background: colors[i] }}
+                          onClick={() => rankMany(selection, i)}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                      <button onClick={() => rankMany(selection, null)}>
+                        待评价
+                      </button>
+                      <button
+                        className="danger-text"
+                        onClick={() => remove(selection)}
+                      >
+                        移除
+                      </button>
+                      <button
+                        title="取消选择 Esc"
+                        onClick={() => setSelected([])}
+                      >
+                        取消
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="board-hint">
+                      悬停或用方向键选中卡片：1–6 评级 · 0 移回待评价 · ⌫ 移除 ·
+                      ⌘/⇧ 点击多选
+                    </p>
+                  )}
                 </div>
                 <section
                   className="pending"
@@ -724,6 +866,61 @@ function App() {
           </>
         )}
       </main>
+      {menu && (
+        <div className="context-menu" role="menu" ref={menuRef}>
+          {menu.ids.length > 1 && <small>{menu.ids.length} 部动画</small>}
+          {tiers.map((t, i) => (
+            <button
+              role="menuitem"
+              key={t}
+              onClick={() => {
+                rankMany(menu.ids, i);
+                setMenu(null);
+              }}
+            >
+              <i style={{ background: colors[i] }} />
+              {t}
+              <kbd>{i + 1}</kbd>
+            </button>
+          ))}
+          <button
+            role="menuitem"
+            onClick={() => {
+              rankMany(menu.ids, null);
+              setMenu(null);
+            }}
+          >
+            <i />
+            移回待评价
+            <kbd>0</kbd>
+          </button>
+          <hr />
+          {menu.ids.length === 1 && (
+            <button
+              role="menuitem"
+              onClick={() => {
+                setDetail(menu.ids[0]);
+                setMenu(null);
+              }}
+            >
+              <i />
+              查看详情 / 编辑
+            </button>
+          )}
+          <button
+            role="menuitem"
+            className="danger-text"
+            onClick={() => {
+              remove(menu.ids);
+              setMenu(null);
+            }}
+          >
+            <i />
+            从榜单移除
+            <kbd>⌫</kbd>
+          </button>
+        </div>
+      )}
       {preview && (
         <ExportPreview
           task={preview}
