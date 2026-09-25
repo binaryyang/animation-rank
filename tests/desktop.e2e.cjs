@@ -571,6 +571,35 @@ const os = require("node:os");
     await expect(page.locator(".anime-card")).toHaveCount(2);
     await page.keyboard.press("Meta+z");
     await expect(page.locator(".anime-card")).toHaveCount(3);
+    // Application menu items drive the same actions as the toolbar.
+    const clickMenu = (menu, label) =>
+      application.evaluate(
+        ({ Menu }, [menu, label]) =>
+          Menu.getApplicationMenu()
+            .items.find((i) => i.label === menu)
+            .submenu.items.find((i) => i.label === label)
+            .click(),
+        [menu, label],
+      );
+    await clickMenu("显示", "快捷评价");
+    await expect(page.locator(".quick-view")).toBeVisible();
+    await clickMenu("编辑", "搜索动画");
+    await expect(page.locator(".pending-header input")).toBeFocused();
+    await clickMenu("显示", "显示 / 隐藏卡片名称");
+    await expect(
+      page.getByRole("checkbox", { name: "显示名称", exact: true }),
+    ).toBeChecked();
+    await clickMenu("显示", "显示 / 隐藏卡片名称");
+    await page.locator(".pending-header input").blur();
+    await clickMenu("编辑", "全选");
+    await expect(page.locator(".anime-card.selected")).toHaveCount(3);
+    await page.keyboard.press("Escape");
+    await clickMenu("文件", "新建评价任务…");
+    await expect(page.locator(".dialog h2")).toHaveText("创建评价任务");
+    await page.locator(".dialog textarea").fill("菜单撤销验证");
+    await clickMenu("编辑", "撤销");
+    await expect(page.locator(".dialog textarea")).toHaveValue("");
+    await page.getByRole("button", { name: "取消", exact: true }).click();
     console.log(
       JSON.stringify({
         passed: true,

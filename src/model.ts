@@ -210,7 +210,22 @@ export type Query = {
   status?: number;
 };
 export type Page = { items: Anime[]; total: number };
+export type MenuCommand =
+  | "new-task"
+  | "add-anime"
+  | "import"
+  | "export-json"
+  | "export-image"
+  | "undo"
+  | "redo"
+  | "select-all"
+  | "find"
+  | "view-board"
+  | "view-quick"
+  | "toggle-names"
+  | "toggle-sidebar";
 export interface DesktopAPI {
+  onMenu(listener: (command: MenuCommand) => void): () => void;
   load(): Promise<{ state: State; warning?: string }>;
   save(state: State): Promise<void>;
   query(q: Query): Promise<Page>;

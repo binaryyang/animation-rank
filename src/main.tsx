@@ -4,6 +4,7 @@ import {
   Anime,
   DesktopAPI,
   History,
+  MenuCommand,
   Query,
   State,
   Task,
@@ -316,13 +317,9 @@ function App() {
       if ((e.metaKey || e.ctrlKey) && e.code === "KeyZ") {
         e.preventDefault();
         travel(e.shiftKey ? "redo" : "undo");
-      } else if ((e.metaKey || e.ctrlKey) && e.code === "KeyA" && !quick) {
+      } else if ((e.metaKey || e.ctrlKey) && e.code === "KeyA") {
         e.preventDefault();
-        setSelected(
-          [...document.querySelectorAll<HTMLElement>("[data-anime-id]")].map(
-            (el) => el.dataset.animeId!,
-          ),
-        );
+        onMenu.current("select-all");
       } else if (e.key === "Escape") {
         if (selection.length) setSelected([]);
         else setQuick(false);
@@ -332,6 +329,62 @@ function App() {
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   });
+  const searchRef = useRef<HTMLInputElement>(null);
+  const onMenu = useRef<(command: MenuCommand) => void>(() => {});
+  onMenu.current = (command) => {
+    const editing = (document.activeElement as HTMLElement | null)?.closest(
+      "input,textarea,[contenteditable=true]",
+    );
+    if (editing && ["undo", "redo", "select-all"].includes(command)) {
+      document.execCommand(command === "select-all" ? "selectAll" : command);
+      return;
+    }
+    if (!loaded || overlayOpen) return;
+    const togglePreference = (key: keyof State["preferences"]) =>
+      update((s) => ({
+        ...s,
+        preferences: { ...s.preferences, [key]: !s.preferences[key] },
+      }));
+    switch (command) {
+      case "new-task":
+        return openModal("new");
+      case "import":
+        return void importFile();
+      case "undo":
+      case "redo":
+        return travel(command);
+      case "toggle-sidebar":
+        return togglePreference("sidebarCollapsed");
+    }
+    if (!task) return;
+    switch (command) {
+      case "add-anime":
+        return setPanel(task.id);
+      case "export-json":
+        return void exportFile(false);
+      case "export-image":
+        return void exportFile(true);
+      case "view-board":
+        return setQuick(false);
+      case "view-quick":
+        return setQuick(true);
+      case "toggle-names":
+        return togglePreference("showNames");
+      case "select-all":
+        if (!quick)
+          setSelected(
+            [...document.querySelectorAll<HTMLElement>("[data-anime-id]")].map(
+              (el) => el.dataset.animeId!,
+            ),
+          );
+        return;
+      case "find":
+        setQuick(false);
+        requestAnimationFrame(() => searchRef.current?.focus());
+        return;
+    }
+  };
+  useEffect(() => api.onMenu((command) => onMenu.current(command)), []);
   const pointerActive = useRef(true);
   useEffect(() => {
     const move = () => (pointerActive.current = true);
@@ -834,7 +887,8 @@ function App() {
                       待评价 <span>{pending.length}</span>
                     </h2>
                     <input
-                      placeholder="搜索待评价动画…"
+                      ref={searchRef}
+                      placeholder="搜索待评价动画… ⌘F"
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
                     />

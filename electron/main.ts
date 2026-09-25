@@ -16,6 +16,7 @@ import {
   maxCoverBytes,
   queryBangumi,
 } from "./service";
+import { installMenu } from "./menu";
 let win: BrowserWindow;
 if (process.env.ANIMATION_RANK_DATA_DIR)
   app.setPath("userData", process.env.ANIMATION_RANK_DATA_DIR);
@@ -192,6 +193,7 @@ app.whenReady().then(() => {
     win.webContents.on("will-navigate", (e) => e.preventDefault());
     win.loadFile(path.join(__dirname, "../../dist/index.html"));
   }
+  installMenu();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
