@@ -600,6 +600,24 @@ const os = require("node:os");
     await clickMenu("编辑", "撤销");
     await expect(page.locator(".dialog textarea")).toHaveValue("");
     await page.getByRole("button", { name: "取消", exact: true }).click();
+    // Window size and position survive a restart.
+    await application.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0].setBounds({
+        x: 60,
+        y: 70,
+        width: 1111,
+        height: 777,
+      }),
+    );
+    await application.close();
+    application = await launch();
+    page = await application.firstWindow();
+    await expect(page.locator(".task-link")).toHaveCount(5);
+    expect(
+      await application.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0].getBounds(),
+      ),
+    ).toMatchObject({ x: 60, y: 70, width: 1111, height: 777 });
     console.log(
       JSON.stringify({
         passed: true,

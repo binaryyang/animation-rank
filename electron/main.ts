@@ -1,5 +1,13 @@
-import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
-import { promises as fs } from "node:fs";
+import {
+  app,
+  BrowserWindow,
+  dialog,
+  ipcMain,
+  protocol,
+  screen,
+  shell,
+} from "electron";
+import { promises as fs, readFileSync } from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -17,6 +25,7 @@ import {
   queryBangumi,
 } from "./service";
 import { installMenu } from "./menu";
+import { minWindow, restoreWindow } from "./window-state";
 let win: BrowserWindow;
 if (process.env.ANIMATION_RANK_DATA_DIR)
   app.setPath("userData", process.env.ANIMATION_RANK_DATA_DIR);
@@ -174,12 +183,20 @@ app.whenReady().then(() => {
     if (!Number.isInteger(id) || id <= 0) throw new Error("无效条目");
     return shell.openExternal(`https://bgm.tv/subject/${id}`);
   });
+  const windowFile = path.join(app.getPath("userData"), "window.json");
   function createWindow() {
+    let saved: unknown;
+    try {
+      saved = JSON.parse(readFileSync(windowFile, "utf8"));
+    } catch {}
+    const bounds = restoreWindow(
+      saved,
+      screen.getAllDisplays().map((d) => d.workArea),
+    );
     win = new BrowserWindow({
-      width: 1440,
-      height: 960,
-      minWidth: 1000,
-      minHeight: 700,
+      ...bounds,
+      minWidth: minWindow.width,
+      minHeight: minWindow.height,
       title: "动画梯度排行",
       backgroundColor: "#f7f8fa",
       webPreferences: {
@@ -189,6 +206,27 @@ app.whenReady().then(() => {
         sandbox: true,
       },
     });
+    if (bounds.maximized) win.maximize();
+    const current = win;
+    let timer: NodeJS.Timeout | undefined;
+    const persist = () => {
+      clearTimeout(timer);
+      if (current.isDestroyed() || current.isFullScreen()) return;
+      const state = {
+        ...current.getNormalBounds(),
+        maximized: current.isMaximized(),
+      };
+      fs.writeFile(windowFile, JSON.stringify(state)).catch(() => {});
+    };
+    const schedule = () => {
+      clearTimeout(timer);
+      timer = setTimeout(persist, 400);
+    };
+    win.on("resize", schedule);
+    win.on("move", schedule);
+    win.on("maximize", schedule);
+    win.on("unmaximize", schedule);
+    win.on("close", persist);
     win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     win.webContents.on("will-navigate", (e) => e.preventDefault());
     win.loadFile(path.join(__dirname, "../../dist/index.html"));
