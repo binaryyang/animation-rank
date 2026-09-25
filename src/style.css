@@ -909,6 +909,22 @@ footer {
   color: white;
   border-color: #497a5f;
 }
+.result.added {
+  background: #f7f8f9;
+  cursor: default;
+}
+.result.added .cover,
+.result.added > div {
+  opacity: 0.55;
+}
+.added-tag {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: #6f8a7b;
+  background: #e8f0eb;
+  border-radius: 4px;
+  padding: 3px 6px;
+}
 .search-empty {
   text-align: center;
   color: #b1bdb5;

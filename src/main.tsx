@@ -1046,6 +1046,8 @@ function ImportPanel({
     });
   const activeQuery = useRef<Query | null>(null);
   const generation = useRef(0);
+  const existing = new Set(target?.entries.map((e) => e.anime.id));
+  const selectable = items.filter((a) => !existing.has(a.id));
   function changeMode(next: typeof mode) {
     generation.current++;
     setMode(next);
@@ -1349,8 +1351,13 @@ function ImportPanel({
                     >
                       <option value="">跳过 / 请选择候选</option>
                       {row.candidates.map((a) => (
-                        <option value={a.id} key={a.id}>
+                        <option
+                          value={a.id}
+                          key={a.id}
+                          disabled={existing.has(a.id)}
+                        >
                           {a.name} {a.date ? `（${a.date}）` : ""}
+                          {existing.has(a.id) ? " · 已在榜单" : ""}
                         </option>
                       ))}
                       <option value="manual">作为手动条目添加</option>
@@ -1365,17 +1372,17 @@ function ImportPanel({
                         ? `找到 ${total} 部动画`
                         : "搜索动画，开启你的榜单"}
                     </span>
-                    {items.length > 0 && (
+                    {selectable.length > 0 && (
                       <button
                         onClick={() =>
                           setSelected(
-                            selected.size === items.length
+                            selected.size === selectable.length
                               ? new Set()
-                              : new Set(items.map((a) => a.id)),
+                              : new Set(selectable.map((a) => a.id)),
                           )
                         }
                       >
-                        {selected.size === items.length
+                        {selected.size === selectable.length
                           ? "取消全选"
                           : "选择已加载"}
                       </button>
@@ -1386,8 +1393,14 @@ function ImportPanel({
                       <button
                         key={a.id}
                         className={
-                          "result " + (selected.has(a.id) ? "checked" : "")
+                          "result " +
+                          (existing.has(a.id)
+                            ? "added"
+                            : selected.has(a.id)
+                              ? "checked"
+                              : "")
                         }
+                        disabled={existing.has(a.id)}
                         onClick={() =>
                           setSelected((old) => {
                             const next = new Set(old);
@@ -1402,9 +1415,13 @@ function ImportPanel({
                           <small>{a.original}</small>
                           <small>{a.date || "首播日期未知"}</small>
                         </div>
-                        <span className="checkbox">
-                          {selected.has(a.id) ? "✓" : ""}
-                        </span>
+                        {existing.has(a.id) ? (
+                          <span className="added-tag">已在榜单</span>
+                        ) : (
+                          <span className="checkbox">
+                            {selected.has(a.id) ? "✓" : ""}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>

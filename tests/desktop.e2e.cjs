@@ -380,6 +380,18 @@ const os = require("node:os");
       .selectOption("manual");
     await page.getByRole("button", { name: "加入榜单 →" }).click();
     await expect(page.locator(".anime-card")).toHaveCount(172);
+    // Search results already in the target task are marked and not selectable.
+    await page
+      .getByRole("button", { name: "＋ 添加动画", exact: true })
+      .click();
+    await page.locator(".search-input").fill("成功项");
+    await page.getByRole("button", { name: "搜索动画" }).click();
+    await expect(page.locator(".result.added")).toContainText("已在榜单");
+    await expect(page.locator(".result.added")).toBeDisabled();
+    await expect(page.getByRole("button", { name: "选择已加载" })).toHaveCount(
+      0,
+    );
+    await page.locator(".panel-title button").click();
     // Fixed panes and direct drops remain reachable at minimum window size.
     await application.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0].setSize(1000, 700),
