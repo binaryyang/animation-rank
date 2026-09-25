@@ -2,6 +2,8 @@
 
 macOS 本地动画评价工具。支持独立榜单、六级拖拽排序、数字键快捷评价、Bangumi 搜索/季度/公开收藏获取、批量名称匹配、手动添加和离线自动保存。
 
+**第一次使用？请阅读 [使用手册](docs/user-guide.md)。** 以下内容主要面向开发者。
+
 ## 开发与验证
 
 ```sh
@@ -17,6 +19,8 @@ node tests/desktop.e2e.cjs --packaged
 `dev` 编译并启动 Electron，修改后重新运行即可。`pack` 生成当前目标 arm64 的应用，位于 `release/mac-arm64/动画梯度排行.app`。应用未签名公证。
 
 桌面测试在临时目录启动真实 Electron 窗口，覆盖任务创建与管理、拖拽、快捷键、导出、重启和部分失败导入。`npm run test:live` 额外检查 Bangumi 公开搜索和季度接口，需要联网。
+
+界面改动后运行 `npm run docs:screenshots`，用内置示例数据重新生成 `docs/images` 中的手册截图，不需要联网。应用内「帮助 → 使用手册」打开 GitHub 上 `main` 分支的 `docs/user-guide.md`。
 
 ## 使用
 
