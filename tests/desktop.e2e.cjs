@@ -605,6 +605,14 @@ const os = require("node:os");
     await expect(page.locator(".pending-header input")).toHaveValue("");
     await expect(page.locator(".anime-card.dimmed")).toHaveCount(0);
     await page.locator(".pending-header input").blur();
+    // The detail dialog shows and highlights the current tier.
+    await page.locator("[data-anime-id='乙'] .card-button").click();
+    await expect(page.locator(".current-tier")).toHaveText("当前：拉完了");
+    await expect(
+      page.locator(".detail-ranks button[aria-pressed='true']"),
+    ).toHaveText("✓ 拉完了");
+    await page.screenshot({ path: path.join(dir, "detail.png") });
+    await page.getByRole("button", { name: "关闭详情" }).click();
     await clickMenu("编辑", "全选");
     await expect(page.locator(".anime-card.selected")).toHaveCount(3);
     await page.keyboard.press("Escape");

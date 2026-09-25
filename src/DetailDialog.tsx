@@ -133,6 +133,16 @@ export function DetailDialog({
         ) : (
           <>
             <Cover anime={anime} />
+            <span
+              className="current-tier"
+              style={
+                entry.tier === null
+                  ? undefined
+                  : { background: colors[entry.tier] }
+              }
+            >
+              {entry.tier === null ? "待评价" : `当前：${tiers[entry.tier]}`}
+            </span>
             <h2>{anime.name}</h2>
             <p>{anime.original}</p>
             <small>首播日期：{anime.date || "暂无资料"}</small>
@@ -167,13 +177,17 @@ export function DetailDialog({
               {tiers.map((t, i) => (
                 <button
                   key={t}
+                  className={entry.tier === i ? "current" : ""}
+                  aria-pressed={entry.tier === i}
                   style={{ background: colors[i] }}
                   onClick={() => rank(i)}
                 >
-                  {t}
+                  {entry.tier === i ? `✓ ${t}` : t}
                 </button>
               ))}
-              <button onClick={() => rank(null)}>移回待评价</button>
+              {entry.tier !== null && (
+                <button onClick={() => rank(null)}>移回待评价</button>
+              )}
             </div>
             <button className="danger-text remove-entry" onClick={remove}>
               从榜单移除

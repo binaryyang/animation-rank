@@ -623,9 +623,27 @@ footer {
   font-size: 11px;
   border: 0;
 }
+.current-tier {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: #eef1f3;
+  color: #303c39;
+}
+.detail-ranks button.current {
+  outline: 2px solid #2c3d36;
+  outline-offset: 2px;
+  font-weight: 600;
+}
 .detail-links {
   display: flex;
   gap: 8px;
+}
+.detail-links button {
+  font-size: 12px;
+  padding: 7px 12px;
 }
 .detail-form > .cover {
   width: 100px;
