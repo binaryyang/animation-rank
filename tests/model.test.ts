@@ -27,7 +27,7 @@ const anime = (id: string) => ({
 });
 describe("任务与评价", () => {
   it("六级固定且无关心是已评价", () => {
-    expect(tiers).toEqual(["夯", "顶级", "人上上", "NPC", "拉完了", "无关心"]);
+    expect(tiers).toEqual(["夯", "顶级", "人上人", "NPC", "拉完了", "无关心"]);
     const t = moveEntry(addAnime(createTask("a"), [anime("1")]), "1", 5);
     expect(t.entries.filter((e) => e.tier !== null)).toHaveLength(1);
   });

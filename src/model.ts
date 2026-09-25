@@ -2,7 +2,7 @@ import { z } from "zod";
 export const tiers = [
   "夯",
   "顶级",
-  "人上上",
+  "人上人",
   "NPC",
   "拉完了",
   "无关心",
