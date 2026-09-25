@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:desktop": "npm run build && node tests/desktop.e2e.cjs",
     "test:live": "npm run build && node tests/live.cjs",
-    "format": "prettier --write src electron tests *.json *.ts index.html README.md",
+    "docs:screenshots": "npm run build && node scripts/docs-screenshots.cjs",
+    "format": "prettier --write src electron tests scripts docs *.json *.ts index.html README.md",
     "check": "tsc --noEmit",
     "pack": "npm run build && electron-builder --mac dir --arm64"
   },
