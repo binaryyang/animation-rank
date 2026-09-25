@@ -193,6 +193,14 @@ export function redo(history: History, state: State) {
 }
 const normalizeName = (s: string) =>
   s.toLowerCase().replace(/[\s\p{P}\p{S}]/gu, "");
+export function matchesQuery(anime: Anime, query: string) {
+  const q = query.trim().toLowerCase();
+  return (
+    !q ||
+    anime.name.toLowerCase().includes(q) ||
+    anime.original.toLowerCase().includes(q)
+  );
+}
 export function bestMatch(name: string, candidates: Anime[]) {
   const key = normalizeName(name);
   return (

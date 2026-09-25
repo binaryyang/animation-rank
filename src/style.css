@@ -1107,6 +1107,16 @@ main > footer,
   font-size: 10px;
   color: #a2aab1;
 }
+.anime-card.dimmed {
+  opacity: 0.25;
+}
+.anime-card.match .cover {
+  box-shadow: 0 0 0 3px #e8b64c;
+}
+.search-summary {
+  font-size: 10px;
+  color: #8d98a1;
+}
 .anime-card.selected .cover {
   outline: 3px solid #346757;
   outline-offset: 2px;

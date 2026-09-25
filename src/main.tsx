@@ -21,6 +21,7 @@ import {
   bestMatch,
   tiers,
   undo,
+  matchesQuery,
 } from "./model";
 import { colors } from "./export";
 import { ExportPreview } from "./ExportPreview";
@@ -180,6 +181,12 @@ function App() {
   const task = state.tasks.find((t) => t.id === state.activeId);
   const pending = task?.entries.filter((e) => e.tier === null) || [];
   const detailEntry = task?.entries.find((e) => e.anime.id === detail);
+  const searching = !!filter.trim();
+  const boardMatches = searching
+    ? (task?.entries.filter(
+        (e) => e.tier !== null && matchesQuery(e.anime, filter),
+      ).length ?? 0)
+    : 0;
   useEffect(() => {
     api
       .load()
@@ -516,7 +523,15 @@ function App() {
   function card(a: Anime, tier: number | null) {
     return (
       <div
-        className={"anime-card" + (selectedSet.has(a.id) ? " selected" : "")}
+        className={
+          "anime-card" +
+          (selectedSet.has(a.id) ? " selected" : "") +
+          (searching && tier !== null
+            ? matchesQuery(a, filter)
+              ? " match"
+              : " dimmed"
+            : "")
+        }
         key={a.id}
         data-anime-id={a.id}
         onContextMenu={(e) => {
@@ -898,18 +913,44 @@ function App() {
                     </h2>
                     <input
                       ref={searchRef}
-                      placeholder="搜索待评价动画… ⌘F"
+                      type="search"
+                      placeholder="搜索动画名称或原名… ⌘F"
                       value={filter}
                       onChange={(e) => setFilter(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Escape") {
+                          setFilter("");
+                          e.currentTarget.blur();
+                        } else if (e.key === "Enter") {
+                          e.preventDefault();
+                          const first =
+                            task.entries.find(
+                              (entry) =>
+                                entry.tier !== null &&
+                                matchesQuery(entry.anime, filter),
+                            ) ??
+                            pending.find((entry) =>
+                              matchesQuery(entry.anime, filter),
+                            );
+                          if (first) focusCard(first.anime.id);
+                        }
+                      }}
                     />
+                    {searching && (
+                      <small className="search-summary">
+                        待评价{" "}
+                        {
+                          pending.filter((e) => matchesQuery(e.anime, filter))
+                            .length
+                        }{" "}
+                        部 · 榜单中 {boardMatches} 部匹配
+                        {boardMatches > 0 && " · 回车定位"}
+                      </small>
+                    )}
                   </div>
                   <div className="pending-cards" data-drag-scroll>
                     {pending
-                      .filter(
-                        (e) =>
-                          e.anime.name.includes(filter) ||
-                          e.anime.original.includes(filter),
-                      )
+                      .filter((e) => matchesQuery(e.anime, filter))
                       .map((e) => card(e.anime, null))}
                     {!pending.length && (
                       <div className="pending-empty">

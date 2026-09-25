@@ -590,6 +590,20 @@ const os = require("node:os");
       page.getByRole("checkbox", { name: "显示名称", exact: true }),
     ).toBeChecked();
     await clickMenu("显示", "显示 / 隐藏卡片名称");
+    // Search is case-insensitive and highlights matches on the board.
+    await page.locator(".pending-header input").fill("乙 ORIGINAL");
+    await expect(page.locator(".anime-card.match")).toHaveCount(1);
+    await expect(page.locator(".anime-card.dimmed")).toHaveCount(2);
+    await expect(page.locator(".search-summary")).toContainText(
+      "榜单中 1 部匹配",
+    );
+    await page.keyboard.press("Enter");
+    await expect(
+      page.locator("[data-anime-id='乙'] .card-button"),
+    ).toBeFocused();
+    await page.locator(".pending-header input").press("Escape");
+    await expect(page.locator(".pending-header input")).toHaveValue("");
+    await expect(page.locator(".anime-card.dimmed")).toHaveCount(0);
     await page.locator(".pending-header input").blur();
     await clickMenu("编辑", "全选");
     await expect(page.locator(".anime-card.selected")).toHaveCount(3);

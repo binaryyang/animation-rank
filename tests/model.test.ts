@@ -5,6 +5,7 @@ import {
   moveEntry,
   moveEntries,
   bestMatch,
+  matchesQuery,
   exportSchema,
   tiers,
   emptyHistory,
@@ -62,6 +63,19 @@ describe("任务与评价", () => {
       exportSchema.parse(JSON.parse(JSON.stringify({ version: 1, task }))),
     ).toEqual({ version: 1, task });
     expect(() => exportSchema.parse({ version: 2, task })).toThrow();
+  });
+});
+describe("搜索", () => {
+  it("忽略大小写和首尾空格，匹配中文名或原名", () => {
+    const a = {
+      ...anime("1"),
+      name: "葬送的芙莉莲",
+      original: "Sousou no Frieren",
+    };
+    expect(matchesQuery(a, " FRIEREN ")).toBe(true);
+    expect(matchesQuery(a, "芙莉莲")).toBe(true);
+    expect(matchesQuery(a, "")).toBe(true);
+    expect(matchesQuery(a, "bocchi")).toBe(false);
   });
 });
 describe("批量名称匹配", () => {
