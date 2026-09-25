@@ -273,6 +273,20 @@ const os = require("node:os");
     }, dir);
     await page.getByRole("button", { name: "↥ 导入任务文件" }).click();
     await expect(page.locator(".anime-card")).toHaveCount(170);
+    // Covers are stored as files; state.json only keeps references.
+    await expect(page.locator(".save-status")).toContainText("已保存");
+    const stored = await readFile(path.join(dir, "state.json"), "utf8");
+    expect(stored).not.toContain("data:image");
+    expect(stored).toContain("cover://local/");
+    await expect(
+      page.locator(".board img.cover[src^='cover://local/']").first(),
+    ).toHaveJSProperty("complete", true);
+    expect(
+      await page
+        .locator(".board img.cover[src^='cover://local/']")
+        .first()
+        .evaluate((img) => img.naturalWidth),
+    ).toBe(320);
     await page.getByRole("button", { name: "↗ 导出图片" }).click();
     await expect(
       page.getByRole("dialog", { name: "导出图片预览" }),
@@ -296,6 +310,20 @@ const os = require("node:os");
       expect(dimensions.width).toBe(1440);
       expect(dimensions.height).toBeLessThanOrEqual(2800);
     }
+    // Exported task files embed the cover images again.
+    await application.evaluate(({ dialog }, dir) => {
+      dialog.showSaveDialog = async () => ({
+        canceled: false,
+        filePath: dir + "/large-export.json",
+      });
+    }, dir);
+    await page.getByRole("button", { name: "任务 JSON", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("任务文件已导出");
+    const largeExport = JSON.parse(
+      await readFile(path.join(dir, "large-export.json"), "utf8"),
+    );
+    expect(largeExport.task.entries[0].anime.cover).toBe(sampleCover);
+    expect(largeExport.task.entries[1].anime.cover).toBe("");
     // Batch partial failure remains reviewable; successful candidates can still import.
     await application.evaluate(({ ipcMain }) => {
       ipcMain.removeHandler("query");

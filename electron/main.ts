@@ -1,22 +1,58 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, protocol, shell } from "electron";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { Anime, animeSchema, exportSchema, taskSchema } from "../src/model";
-import { Store, fetchSubject, queryBangumi } from "./service";
+import {
+  Anime,
+  animeSchema,
+  coverPrefix,
+  exportSchema,
+  taskSchema,
+} from "../src/model";
+import {
+  CoverStore,
+  Store,
+  fetchSubject,
+  maxCoverBytes,
+  queryBangumi,
+} from "./service";
 let win: BrowserWindow;
 if (process.env.ANIMATION_RANK_DATA_DIR)
   app.setPath("userData", process.env.ANIMATION_RANK_DATA_DIR);
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: "cover",
+    privileges: { standard: true, secure: true, corsEnabled: true },
+  },
+]);
 app.whenReady().then(() => {
   if (!app.isPackaged) {
     app.dock?.setIcon(path.join(__dirname, "../../build/dock-icon.png"));
   }
   const store = new Store(app.getPath("userData"));
+  const covers = new CoverStore(path.join(app.getPath("userData"), "images"));
+  protocol.handle("cover", async (request) => {
+    const target = covers.resolve(request.url);
+    if (!target) return new Response(null, { status: 404 });
+    try {
+      return new Response(await fs.readFile(target.file), {
+        headers: {
+          "Content-Type": target.mime,
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "max-age=31536000, immutable",
+        },
+      });
+    } catch {
+      return new Response(null, { status: 404 });
+    }
+  });
   let ready = false;
   ipcMain.handle("load", async () => {
     const result = await store.load();
+    const state = await covers.migrate(result.state);
+    if (state !== result.state) await store.save(state);
     ready = true;
-    return result;
+    return { ...result, state };
   });
   ipcMain.handle("save", (_, state) => {
     if (!ready) throw new Error("请先恢复数据");
@@ -34,7 +70,12 @@ app.whenReady().then(() => {
         .array()
         .parse(input)
         .map(async (a: Anime) => {
-          if (!a.cover || a.cover.startsWith("data:image/")) return a;
+          if (!a.cover) return a;
+          if (
+            a.cover.startsWith("data:image/") ||
+            a.cover.startsWith(coverPrefix)
+          )
+            return { ...a, cover: await covers.fromDataUrl(a.cover) };
           try {
             const url = new URL(a.cover);
             if (url.protocol !== "https:" || url.hostname !== "lain.bgm.tv")
@@ -45,21 +86,20 @@ app.whenReady().then(() => {
               dir,
               createHash("sha256").update(a.cover).digest("hex"),
             );
-            let cover: string;
-            try {
-              cover = await fs.readFile(file, "utf8");
-            } catch {
+            const cached = await fs.readFile(file, "utf8").catch(() => "");
+            let cover = cached.startsWith("data:image/")
+              ? await covers.fromDataUrl(cached)
+              : (await covers.exists(cached))
+                ? cached
+                : "";
+            if (!cover) {
               const r = await fetch(url, {
                 signal: AbortSignal.timeout(10000),
               });
               if (!r.ok) throw new Error();
-              const mime = r.headers.get("content-type") || "";
-              if (!/^image\/(png|jpeg|webp|gif)/.test(mime)) throw new Error();
-              const bytes = Buffer.from(await r.arrayBuffer());
-              if (bytes.length > 10_000_000) throw new Error();
-              cover = `data:${mime.split(";")[0]};base64,${bytes.toString("base64")}`;
-              await fs.writeFile(file, cover);
+              cover = await covers.put(Buffer.from(await r.arrayBuffer()));
             }
+            if (cover !== cached) await fs.writeFile(file, cover);
             return { ...a, cover };
           } catch {
             return { ...a, cover: "" };
@@ -73,13 +113,12 @@ app.whenReady().then(() => {
     });
     if (result.canceled) return null;
     const file = result.filePaths[0];
-    const bytes = await fs.readFile(file);
-    if (bytes.length > 10_000_000) throw new Error("封面不能超过 10 MB");
-    const ext = path.extname(file).slice(1);
-    return `data:image/${ext === "jpg" ? "jpeg" : ext};base64,${bytes.toString("base64")}`;
+    if ((await fs.stat(file)).size > maxCoverBytes)
+      throw new Error("封面不能超过 10 MB");
+    return covers.put(await fs.readFile(file));
   });
   ipcMain.handle("export-task", async (_, input) => {
-    const task = taskSchema.parse(input);
+    const task = await covers.externalize(taskSchema.parse(input));
     const result = await dialog.showSaveDialog(win, {
       defaultPath: task.name.replace(/[\\/:]/g, "_") + ".json",
       filters: [{ name: "任务文件", extensions: ["json"] }],
@@ -107,9 +146,11 @@ app.whenReady().then(() => {
     task.entries = task.entries.filter(
       (e, i, all) => all.findIndex((a) => a.anime.id === e.anime.id) === i,
     );
-    for (const e of task.entries)
-      if (!e.anime.cover.startsWith("data:image/")) e.anime.cover = "";
-    return task;
+    return covers.mapTask(task, (cover) =>
+      cover.startsWith("data:image/")
+        ? covers.fromDataUrl(cover)
+        : Promise.resolve(""),
+    );
   });
   ipcMain.handle("export-images", async (_, images: string[]) => {
     const result = await dialog.showSaveDialog(win, {

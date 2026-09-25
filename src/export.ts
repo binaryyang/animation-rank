@@ -1,4 +1,4 @@
-import { Anime, Task, tiers } from "./model";
+import { Anime, Task, hasCover, tiers } from "./model";
 export const colors = [
   "#ef7973",
   "#f4b16f",
@@ -132,9 +132,10 @@ export async function renderImages(
       decoded.set(
         cover,
         (async () => {
-          if (!cover.startsWith("data:image/")) return null;
+          if (!hasCover(cover)) return null;
           try {
             const image = new Image();
+            image.crossOrigin = "anonymous";
             image.src = cover;
             await image.decode();
             return image;

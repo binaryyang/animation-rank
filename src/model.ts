@@ -20,6 +20,9 @@ export const animeSchema = z
   .transform((anime) =>
     anime.bangumiId ? { ...anime, id: `bgm:${anime.bangumiId}` } : anime,
   );
+export const coverPrefix = "cover://local/";
+export const hasCover = (cover: string) =>
+  cover.startsWith("data:image/") || cover.startsWith(coverPrefix);
 export const entrySchema = z.object({
   anime: animeSchema,
   tier: z.number().int().min(0).max(5).nullable(),

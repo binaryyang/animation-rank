@@ -1,6 +1,15 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { Anime, Page, Query, State, stateSchema } from "../src/model";
+import { createHash } from "node:crypto";
+import {
+  Anime,
+  Page,
+  Query,
+  State,
+  Task,
+  coverPrefix,
+  stateSchema,
+} from "../src/model";
 
 export class Store {
   private queue: Promise<void> = Promise.resolve();
@@ -56,6 +65,103 @@ export class Store {
       });
     this.queue = operation;
     return operation;
+  }
+}
+const signatures: [string, (b: Buffer) => boolean][] = [
+  [
+    "png",
+    (b) => b.subarray(0, 4).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47])),
+  ],
+  ["jpeg", (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff],
+  ["gif", (b) => b.subarray(0, 3).toString("latin1") === "GIF"],
+  [
+    "webp",
+    (b) =>
+      b.subarray(0, 4).toString("latin1") === "RIFF" &&
+      b.subarray(8, 12).toString("latin1") === "WEBP",
+  ],
+];
+const coverName = /^[0-9a-f]{64}\.(png|jpeg|gif|webp)$/;
+export const maxCoverBytes = 10_000_000;
+export class CoverStore {
+  constructor(private dir: string) {}
+  async put(bytes: Buffer): Promise<string> {
+    if (bytes.length > maxCoverBytes) throw new Error("封面不能超过 10 MB");
+    const ext = signatures.find(([, test]) => test(bytes))?.[0];
+    if (!ext) throw new Error("不支持的图片格式");
+    const name = `${createHash("sha256").update(bytes).digest("hex")}.${ext}`;
+    await fs.mkdir(this.dir, { recursive: true });
+    await fs
+      .writeFile(path.join(this.dir, name), bytes, { flag: "wx" })
+      .catch((error) => {
+        if (error.code !== "EEXIST") throw error;
+      });
+    return coverPrefix + name;
+  }
+  resolve(ref: string) {
+    if (!ref.startsWith(coverPrefix)) return null;
+    const name = ref.slice(coverPrefix.length);
+    if (!coverName.test(name)) return null;
+    return {
+      file: path.join(this.dir, name),
+      mime: `image/${name.split(".")[1]}`,
+    };
+  }
+  async exists(ref: string) {
+    const target = this.resolve(ref);
+    return (
+      !!target &&
+      (await fs.access(target.file).then(
+        () => true,
+        () => false,
+      ))
+    );
+  }
+  async toDataUrl(cover: string) {
+    const target = this.resolve(cover);
+    if (!target) return cover.startsWith("data:image/") ? cover : "";
+    try {
+      const bytes = await fs.readFile(target.file);
+      return `data:${target.mime};base64,${bytes.toString("base64")}`;
+    } catch {
+      return "";
+    }
+  }
+  async fromDataUrl(cover: string) {
+    if (!cover.startsWith("data:image/"))
+      return this.resolve(cover) ? cover : "";
+    try {
+      return await this.put(Buffer.from(cover.split(",")[1] || "", "base64"));
+    } catch {
+      return "";
+    }
+  }
+  async mapTask(task: Task, fn: (cover: string) => Promise<string>) {
+    const entries = await Promise.all(
+      task.entries.map(async (e) => {
+        const cover = await fn(e.anime.cover);
+        return cover === e.anime.cover
+          ? e
+          : { ...e, anime: { ...e.anime, cover } };
+      }),
+    );
+    return entries.every((e, i) => e === task.entries[i])
+      ? task
+      : { ...task, entries };
+  }
+  internalize(task: Task) {
+    return this.mapTask(task, (c) => this.fromDataUrl(c));
+  }
+  externalize(task: Task) {
+    return this.mapTask(task, (c) => this.toDataUrl(c));
+  }
+  async migrate(state: State) {
+    const tasks = await Promise.all(
+      state.tasks.map((t) => this.internalize(t)),
+    );
+    return tasks.every((t, i) => t === state.tasks[i])
+      ? state
+      : { ...state, tasks };
   }
 }
 export function normalize(raw: any): Anime {

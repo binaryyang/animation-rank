@@ -26,7 +26,7 @@ node tests/desktop.e2e.cjs --packaged
 
 顶部的菜单按钮可完全收起或展开左侧任务栏。榜单默认隐藏卡片下方名称，可通过“显示名称”开关恢复；悬停查看完整名称，缺失封面时保留名称占位。侧栏和名称偏好在本机保存，切换任务及重启后继续生效。
 
-数据写入 Electron 的 userData 目录（macOS 通常为 `~/Library/Application Support/animation-rank`）。`state.json` 是当前数据，`state.json.bak` 是最近有效备份。每次修改串行写入临时文件后原子替换；保存失败在界面重试。封面缓存在 `covers` 并随任务数据保存，离线仍可评价。
+数据写入 Electron 的 userData 目录（macOS 通常为 `~/Library/Application Support/animation-rank`）。`state.json` 是当前数据，`state.json.bak` 是最近有效备份。每次修改串行写入临时文件后原子替换；保存失败在界面重试。封面按内容哈希保存为 `images` 目录下的图片文件，`state.json` 只记录 `cover://local/…` 引用，因此榜单再大保存也很轻；旧版内嵌在数据中的封面会在启动时自动迁移。离线仍可评价。
 
 JSON 导出包含一个完整任务及已缓存封面，导入总是创建新任务。PNG 导出先显示分页预览，可独立选择是否显示动画名称；确认保存后输出与预览一致。图片只包含六级已评价动画，同等级合并色块，空等级使用紧凑行，长榜单自动分成多张图片并标注跨页等级。在线接口不可用时仍可手动添加；未缓存成功的封面使用名称占位。
 

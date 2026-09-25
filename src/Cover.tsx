@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Anime } from "./model";
+import { Anime, hasCover } from "./model";
 export function Cover({
   anime,
   className = "",
@@ -8,7 +8,7 @@ export function Cover({
   className?: string;
 }) {
   const [broken, setBroken] = useState<string | null>(null);
-  return anime.cover.startsWith("data:image/") && broken !== anime.cover ? (
+  return hasCover(anime.cover) && broken !== anime.cover ? (
     <img
       className={"cover " + className}
       src={anime.cover}
