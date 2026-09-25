@@ -50,7 +50,7 @@ function Cover({
     </div>
   );
 }
-type Notice = { text: string; action?: "undo" | "redo" };
+type Notice = { text: string; action?: "undo" | "redo"; duration: number };
 function App() {
   const [state, setState] = useState<State>(emptyState),
     [loaded, setLoaded] = useState(false),
@@ -63,16 +63,24 @@ function App() {
     [quick, setQuick] = useState(false),
     [filter, setFilter] = useState(""),
     [exporting, setExporting] = useState(false);
-  const setNotice = (text: string, action?: Notice["action"]) =>
-    setNoticeState(text ? { text, action } : null);
+  const setNotice = (
+    text: string,
+    action?: Notice["action"],
+    duration = action ? 8000 : 4000,
+  ) => {
+    setHoverNotice(false);
+    setNoticeState(text ? { text, action, duration } : null);
+  };
+  const [hoverNotice, setHoverNotice] = useState(false);
   useEffect(() => {
-    if (!notice || /失败|异常|无法|Error/.test(notice.text)) return;
+    if (!notice || hoverNotice || /失败|异常|无法|Error/.test(notice.text))
+      return;
     const timer = window.setTimeout(
       () => setNoticeState(null),
-      notice.action ? 8000 : 4000,
+      notice.duration,
     );
     return () => window.clearTimeout(timer);
-  }, [notice]);
+  }, [notice, hoverNotice]);
   const [preview, setPreview] = useState<Task | null>(null);
   const stateRef = useRef(state);
   const history = useRef<History>(emptyHistory);
@@ -80,13 +88,18 @@ function App() {
     stateRef.current = fn(stateRef.current);
     setState(stateRef.current);
   }
-  function apply(label: string, fn: (s: State) => State, focus?: string) {
+  function apply(
+    label: string,
+    fn: (s: State) => State,
+    focus?: string,
+    duration?: number,
+  ) {
     const previous = stateRef.current,
       next = fn(previous);
     if (next === previous) return;
     history.current = record(history.current, previous, label, focus);
     update(() => next);
-    setNotice(label, "undo");
+    setNotice(label, "undo", duration);
   }
   function travel(direction: "undo" | "redo") {
     const result = (direction === "undo" ? undo : redo)(
@@ -293,10 +306,15 @@ function App() {
         name: names.trim(),
       }));
     else if (modal === "delete" && task)
-      apply(`已删除「${task.name}」`, (s) => {
-        const tasks = s.tasks.filter((t) => t.id !== task.id);
-        return { ...s, tasks, activeId: tasks[0]?.id || null };
-      });
+      apply(
+        `已删除「${task.name}」`,
+        (s) => {
+          const tasks = s.tasks.filter((t) => t.id !== task.id);
+          return { ...s, tasks, activeId: tasks[0]?.id || null };
+        },
+        undefined,
+        15000,
+      );
     setModal(null);
   }
   function openModal(type: "new" | "rename" | "delete") {
@@ -437,7 +455,12 @@ function App() {
           </button>
         </header>
         {notice && (
-          <div className="notice" role="status">
+          <div
+            className="notice"
+            role="status"
+            onMouseEnter={() => setHoverNotice(true)}
+            onMouseLeave={() => setHoverNotice(false)}
+          >
             <span>{notice.text}</span>
             {notice.action && (
               <button
@@ -725,7 +748,10 @@ function App() {
                   : "删除这份榜单？"}
             </h2>
             {modal === "delete" ? (
-              <p>“{task?.name}”及其评价将被删除。其他榜单不会受到影响。</p>
+              <p>
+                “{task?.name}
+                ”及其评价将被删除。其他榜单不会受到影响，删除后可以撤销（⌘Z）。
+              </p>
             ) : (
               <>
                 <p>

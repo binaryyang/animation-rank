@@ -98,6 +98,15 @@ const os = require("node:os");
     await page.getByRole("button", { name: "删除", exact: true }).click();
     await page.getByRole("button", { name: "删除任务", exact: true }).click();
     await expect(page.locator(".task-link")).toHaveCount(2);
+    // Deleting a task can be undone from the notice and redone again.
+    await page
+      .getByRole("status")
+      .getByRole("button", { name: "撤销", exact: true })
+      .click();
+    await expect(page.locator(".task-link")).toHaveCount(3);
+    await expect(page.locator("h1")).toHaveText("重命名验证 · 副本");
+    await page.keyboard.press("Meta+Shift+z");
+    await expect(page.locator(".task-link")).toHaveCount(2);
     // Exercise export IPC with native save dialogs stubbed to an isolated test directory.
     await application.evaluate(({ dialog }, dir) => {
       dialog.showSaveDialog = async () => ({
